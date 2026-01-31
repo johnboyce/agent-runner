@@ -26,3 +26,8 @@ out/
 
 # Logs
 *.log
+
+# Forgejo runtime data
+docker/forgejo/data/
+# External services (cloned separately)
+docker/taiga/
