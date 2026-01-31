@@ -65,6 +65,13 @@ COMMIT_MESSAGE.md
 *_READY.txt
 *_CELEBRATION.txt
 *_FIXED.txt
+*_INSTRUCTIONS.txt
+FINAL_*.txt
+COMMIT_NOW.txt
+FIX_*.txt
+HOW_TO_*.txt
+NEXTJS_*.txt
+TAILWIND_*.txt
 
 # Temporary docs that are session artifacts (not guides)
 docs/EXECUTION_SUCCESS.md
