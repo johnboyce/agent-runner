@@ -2,11 +2,16 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
-  title: 'Agent Runner Console',
-  description: 'Console for managing agent runs',
+  title: 'Agent Runner Console - AI Development Platform',
+  description: 'Monitor and control your autonomous AI agent runs in real-time. Beautiful, powerful, and developer-friendly.',
+  keywords: ['AI', 'Agent', 'Automation', 'Development', 'Console'],
 };
 
 export default function RootLayout({
@@ -15,8 +20,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className={inter.className}>
+        {children}
+      </body>
     </html>
   );
 }
