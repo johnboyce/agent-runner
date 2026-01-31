@@ -1,33 +1,58 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# SQLite / local data
-*.db
-db/
-
-# Node / Next.js (for later)
-node_modules/
-.next/
-out/
-
-# OS / editor
+# --- OS / editor ---
 .DS_Store
 .idea/
 .vscode/
 
-# Logs
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+dist/
+build/
 *.log
 
-# Forgejo runtime data
+# --- Environment files ---
+.env
+.env.*.local
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# --- Python virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Local databases / runtime data ---
+*.db
+*.db-journal
+db/
+
+# --- Aider artifacts ---
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4/
+
+# --- Local docker runtime volumes (do not commit) ---
 docker/forgejo/data/
-# External services (cloned separately)
 docker/taiga/
+
+# --- Analysis directory ---
+# Note: docs/_analysis/ preserves directory structure but does not commit analysis files
+# Only README.md is tracked to explain the directory's purpose
+docs/_analysis/*.md
+!docs/_analysis/README.md
+
+# --- Temporary working documents (session-specific, not committed) ---
+READY_TO_COMMIT.md
+PRE_COMMIT_CHECKLIST.md
+PROFESSIONAL_IMPROVEMENTS.md
+
