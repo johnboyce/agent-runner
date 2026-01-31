@@ -1,4 +1,4 @@
-.PHONY: help install start stop restart clean test status logs
+.PHONY: help install start stop restart clean test status logs git-diff
 
 # Default target
 help:
@@ -19,8 +19,12 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make clean            Clean build artifacts and caches"
-	@echo "  make test             Run tests"
+	@echo "  make test             Run unit tests"
+	@echo "  make test-verbose     Run tests with verbose output"
+	@echo "  make test-coverage    Run tests with coverage report"
+	@echo "  make test-agent       Test agent execution end-to-end"
 	@echo "  make logs             Show service logs"
+	@echo "  make git-diff         Show git diff and copy to clipboard"
 	@echo ""
 	@echo "Infrastructure:"
 	@echo "  make start-forgejo    Start Forgejo (Git)"
@@ -169,9 +173,20 @@ clean:
 	@echo "✅ Cleaned"
 
 test:
-	@echo "🧪 Running tests..."
-	@echo "⚠️  No tests configured yet"
-	@echo "   Add tests in agent-runner/tests/ and console/src/__tests__/"
+	@echo "🧪 Running unit tests..."
+	cd agent-runner && . .venv/bin/activate && pytest
+
+test-verbose:
+	@echo "🧪 Running unit tests (verbose)..."
+	cd agent-runner && . .venv/bin/activate && pytest -v
+
+test-coverage:
+	@echo "🧪 Running tests with coverage..."
+	cd agent-runner && . .venv/bin/activate && pytest --cov=app --cov-report=term-missing
+
+test-agent:
+	@echo "🧪 Testing agent execution..."
+	@./scripts/test-agent-execution.sh
 
 # Quick development commands
 dev: start
@@ -193,3 +208,19 @@ seed:
 	@echo ""
 	@echo "✅ Test data created"
 	@echo "   View at: http://localhost:3001"
+
+# Git diff helper
+git-diff:
+	@echo "📊 Git diff (staged changes):"
+	@echo ""
+	@git diff --cached --stat
+	@echo ""
+	@echo "Copying full diff to clipboard and saving to file..."
+	@git diff --cached > /tmp/git-diff-latest.txt
+	@git diff --cached | (pbcopy 2>/dev/null || xclip -selection clipboard 2>/dev/null || true)
+	@LINES=$$(git diff --cached | wc -l | tr -d ' '); \
+	echo "✅ Copied $$LINES lines to clipboard (or saved to /tmp/git-diff-latest.txt)"
+	@echo ""
+	@echo "💡 Paste with Cmd+V (macOS) or Ctrl+V (Linux)"
+	@echo "💡 Or view file: cat /tmp/git-diff-latest.txt"
+

@@ -52,7 +52,21 @@ docs/_analysis/*.md
 !docs/_analysis/README.md
 
 # --- Temporary working documents (session-specific, not committed) ---
+# Root level AI assistant files
 READY_TO_COMMIT.md
 PRE_COMMIT_CHECKLIST.md
 PROFESSIONAL_IMPROVEMENTS.md
+COMMIT_MESSAGE.md
+*_SUMMARY.md
+*_STATUS.md
+*_COMPLETE.txt
+*_RESOLVED.txt
+*_VERIFIED.txt
+*_READY.txt
+*_CELEBRATION.txt
+*_FIXED.txt
+
+# Temporary docs that are session artifacts (not guides)
+docs/EXECUTION_SUCCESS.md
+docs/PRODUCTION_FIXES.md
 

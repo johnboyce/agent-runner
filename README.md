@@ -31,11 +31,16 @@ For all available commands: `make help`
 
 ## Features
 
+- **Automatic agent execution** — Background worker processes runs automatically ✨ NEW
 - **Read and modify real codebases** — Agents work on actual Git repositories
 - **Expose HTTP APIs** — RESTful endpoints for control and inspection
 - **Coordinate multi-step tasks** — Orchestrate complex workflows
 - **Power a modern web console** — Next.js UI for visibility and control
 - **Operate safely under human supervision** — Human-in-the-loop by design
+
+**Status:** Runs now execute automatically! Create a run and watch it transition through QUEUED → RUNNING → COMPLETED.
+
+**Test it:** `make test-agent` (requires agent runner to be running)
 
 ---
 
