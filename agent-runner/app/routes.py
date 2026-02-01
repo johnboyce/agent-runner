@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
+from enum import Enum
+import json
+from datetime import datetime
 from .database import get_db
 from .models import Project, Run, Event
 from .worker import get_worker
@@ -8,8 +12,22 @@ from .agent import get_agent
 
 router = APIRouter()
 
+class RunType(str, Enum):
+    agent = "agent"
+    workflow = "workflow"
+    pipeline = "pipeline"
+    task = "task"
+
 class DirectiveIn(BaseModel):
     text: str
+
+class CreateRunRequest(BaseModel):
+    project_id: int
+    goal: str
+    name: Optional[str] = None
+    run_type: RunType = RunType.agent  # Has default, doesn't need Optional
+    options: Optional[dict] = None  # e.g., {"dry_run": false, "verbose": true, "max_steps": 10}
+    metadata: Optional[dict] = None  # Custom key-value pairs
 
 
 @router.post("/projects")
@@ -25,13 +43,34 @@ def list_projects(db: Session = Depends(get_db)):
     return [p.to_dict() for p in db.query(Project).all()]
 
 @router.post("/runs")
-def create_run(project_id: int, goal: str, db: Session = Depends(get_db)):
-    run = Run(project_id=project_id, goal=goal)
+def create_run(request: CreateRunRequest, db: Session = Depends(get_db)):
+    # Verify project exists
+    project = db.query(Project).filter(Project.id == request.project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail=f"Project with id {request.project_id} not found")
+
+    # Generate default name if not provided
+    run_name = request.name
+    if not run_name:
+        run_name = f"Run - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+
+    # Serialize options and metadata to JSON strings
+    options_json = json.dumps(request.options) if request.options else None
+    metadata_json = json.dumps(request.metadata) if request.metadata else None
+
+    run = Run(
+        project_id=request.project_id,
+        name=run_name,
+        goal=request.goal,
+        run_type=request.run_type.value,  # Always has a value (default or provided)
+        options=options_json,
+        run_metadata=metadata_json  # Use run_metadata column
+    )
     db.add(run)
     db.commit()
     db.refresh(run)
 
-    event = Event(run_id=run.id, type="RUN_CREATED", payload=goal)
+    event = Event(run_id=run.id, type="RUN_CREATED", payload=request.goal)
     db.add(event)
     db.commit()
 

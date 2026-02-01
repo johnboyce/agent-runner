@@ -14,9 +14,13 @@ import { StatusPill, Card } from '@/components/ui';
 interface Run {
   id: number;
   project_id: number;
+  name?: string;
   goal: string;
+  run_type?: string;
   status: string;
   current_iteration: number;
+  options?: Record<string, any>;
+  metadata?: Record<string, any>;
   created_at: string;
 }
 
@@ -204,11 +208,18 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold text-gray-900">Run #{run.id}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {run.name || `Run #${run.id}`}
+                </h1>
                 <StatusPill status={run.status} />
+                {run.run_type && run.run_type !== 'agent' && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                    {run.run_type}
+                  </span>
+                )}
               </div>
               <p className="text-gray-700 text-lg mb-2">{run.goal}</p>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                 <span className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
                   Created {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}

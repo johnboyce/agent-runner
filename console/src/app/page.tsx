@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus } from 'lucide-react';
+import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAdaptivePolling, usePolling } from '@/hooks/usePolling';
 import { StatusPill, Card, EmptyState } from '@/components/ui';
@@ -19,9 +19,13 @@ interface Project {
 interface Run {
   id: number;
   project_id: number;
+  name?: string;
   goal: string;
+  run_type?: string;
   status: string;
   current_iteration: number;
+  options?: Record<string, any>;
+  metadata?: Record<string, any>;
   created_at: string;
 }
 
@@ -36,7 +40,20 @@ export default function Home() {
   const [filter, setFilter] = useState<'all' | 'active'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const router = useRouter();
+
+  // Track timeouts for cleanup
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+    };
+  }, []);
 
   // Fetch runs with adaptive polling (fast when active, slow when idle)
   const { data: runs, loading: runsLoading, error: runsError } = useAdaptivePolling<Run[]>(
@@ -87,8 +104,47 @@ export default function Home() {
 
   const activeCount = runs?.filter(r => ['QUEUED', 'RUNNING', 'PAUSED'].includes(r.status)).length || 0;
 
+  // Check Forgejo and Taiga status
+  const { data: forgejoStatus } = usePolling<{ status: string }>(
+    async () => {
+      try {
+        // Try to fetch - if it succeeds (even with opaque response), service is up
+        await fetch('http://localhost:3000', { method: 'HEAD', mode: 'no-cors' });
+        return { status: 'online' };
+      } catch {
+        // Network error means service is down
+        return { status: 'offline' };
+      }
+    },
+    { interval: 30000 } // Check every 30 seconds
+  );
+
+  const { data: taigaStatus } = usePolling<{ status: string }>(
+    async () => {
+      try {
+        // Try to fetch - if it succeeds (even with opaque response), service is up
+        await fetch('http://localhost:9000', { method: 'HEAD', mode: 'no-cors' });
+        return { status: 'online' };
+      } catch {
+        // Network error means service is down
+        return { status: 'offline' };
+      }
+    },
+    { interval: 30000 } // Check every 30 seconds
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Success Toast */}
+      {showToast && (
+        <div className="fixed top-4 right-4 z-[60] animate-slide-in">
+          <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3">
+            <CheckCircle className="w-5 h-5" />
+            <span className="font-medium">Run created successfully!</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 backdrop-blur-sm bg-white/90">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -101,22 +157,65 @@ export default function Home() {
               <p className="text-sm text-gray-500 mt-1">Monitor and control your AI agent runs</p>
             </div>
 
-            {/* Worker Status Badge */}
-            {workerStatus && (
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                workerStatus.running 
-                  ? 'bg-green-50 text-green-700 border border-green-200' 
-                  : 'bg-red-50 text-red-700 border border-red-200'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  workerStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-                }`} />
-                Worker: {workerStatus.running ? 'Running' : 'Stopped'}
-                {workerStatus.running && (
-                  <span className="text-xs opacity-75">({workerStatus.check_interval}s)</span>
-                )}
-              </div>
-            )}
+            {/* Status Indicators */}
+            <div className="flex items-center gap-3">
+              {/* Worker Status Badge */}
+              {workerStatus && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                  workerStatus.running 
+                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    workerStatus.running ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  }`} />
+                  Worker
+                  {workerStatus.running && (
+                    <span className="text-xs opacity-75">({workerStatus.check_interval}s)</span>
+                  )}
+                </div>
+              )}
+
+              {/* Forgejo Status (Optional) */}
+              {forgejoStatus && (
+                <a
+                  href="http://localhost:3000"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 ${
+                    forgejoStatus.status === 'online'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-gray-50 text-gray-500 border border-gray-200'
+                  }`}
+                  title={forgejoStatus.status === 'online' ? 'Forgejo port reachable (click to open)' : 'Forgejo port not reachable'}
+                >
+                  <span className={`w-2 h-2 rounded-full ${
+                    forgejoStatus.status === 'online' ? 'bg-blue-500' : 'bg-gray-400'
+                  }`} />
+                  Forgejo
+                </a>
+              )}
+
+              {/* Taiga Status (Optional) */}
+              {taigaStatus && (
+                <a
+                  href="http://localhost:9000"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 ${
+                    taigaStatus.status === 'online'
+                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                      : 'bg-gray-50 text-gray-500 border border-gray-200'
+                  }`}
+                  title={taigaStatus.status === 'online' ? 'Taiga port reachable (click to open)' : 'Taiga port not reachable'}
+                >
+                  <span className={`w-2 h-2 rounded-full ${
+                    taigaStatus.status === 'online' ? 'bg-purple-500' : 'bg-gray-400'
+                  }`} />
+                  Taiga
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -277,14 +376,19 @@ export default function Home() {
                   <Card className="p-6 hover:border-blue-300 transition-all cursor-pointer">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            Run #{run.id}
+                            {run.name || `Run #${run.id}`}
                           </h3>
                           <StatusPill status={run.status} />
+                          {run.run_type && run.run_type !== 'agent' && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                              {run.run_type}
+                            </span>
+                          )}
                         </div>
                         <p className="text-gray-700 mb-2 line-clamp-2">{run.goal}</p>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                           <span>Project ID: {run.project_id}</span>
                           <span>•</span>
                           <span>Iteration: {run.current_iteration}</span>
@@ -312,7 +416,16 @@ export default function Home() {
       <CreateRunModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={(runId) => router.push(`/runs/${runId}`)}
+        onSuccess={(runId) => {
+          // Clear any existing timeouts
+          if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+          if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
+
+          // Show toast
+          setShowToast(true);
+          toastTimeoutRef.current = setTimeout(() => setShowToast(false), 3000);
+          navTimeoutRef.current = setTimeout(() => router.push(`/runs/${runId}`), 500);
+        }}
         apiUrl={API_URL}
       />
     </div>

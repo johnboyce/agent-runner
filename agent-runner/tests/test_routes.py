@@ -40,7 +40,7 @@ def create_project(client: TestClient, name="test-project", local_path="/tmp/tes
 
 
 def create_run(client: TestClient, project_id: int, goal="Test goal"):
-    resp = client.post("/runs", params={"project_id": project_id, "goal": goal})
+    resp = client.post("/runs", json={"project_id": project_id, "goal": goal})
     _assert_ok(resp)
     data = _json(resp)
     # Guard rails so you see what you actually got back

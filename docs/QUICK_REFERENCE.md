@@ -48,8 +48,10 @@ Should see: `Ready started server on 0.0.0.0:3001`
 # Create test project
 curl -X POST "http://localhost:8000/projects?name=demo-project&local_path=/tmp/demo"
 
-# Create test run
-curl -X POST "http://localhost:8000/runs?project_id=1&goal=Write%20a%20hello%20world%20script"
+# Create test run (new JSON format)
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "goal": "Write a hello world script"}'
 
 # List all projects
 curl http://localhost:8000/projects
@@ -67,10 +69,11 @@ Open: http://localhost:3001
 
 | Service | Port | URL |
 |---------|------|-----|
+| Console (UI) | 3000 or 3001 | http://localhost:3000 or :3001 |
 | Forgejo (Git) | 3000 | http://localhost:3000 |
-| Console (UI) | 3001 | http://localhost:3001 |
 | Agent Runner (API) | 8000 | http://localhost:8000 |
 | Taiga (PM) | 9000 | http://localhost:9000 |
+| Ollama (LLM) | 11434 | http://localhost:11434 (not yet integrated) |
 
 ---
 
@@ -83,12 +86,55 @@ Open: http://localhost:3001
 ### Runs
 - `GET /runs` - List all runs (newest first)
 - `GET /runs/{id}` - Get run details
-- `POST /runs?project_id={id}&goal={goal}` - Create run
+- `POST /runs` - Create run (JSON body required - see below)
 - `POST /runs/{id}/{action}` - Control run (pause|resume|stop)
 
 ### Events
 - `GET /runs/{id}/events` - List events for run
-- `POST /runs/{id}/directive?text={text}` - Add directive event
+- `POST /runs/{id}/directive` - Add directive event (JSON body: `{"text": "..."}`)
+
+### Worker
+- `GET /worker/status` - Get background worker status
+- `POST /worker/process` - Manually trigger run processing
+
+### Health
+- `GET /health` - Health check endpoint
+- `GET /docs` - Interactive API documentation (Swagger UI)
+
+### Creating a Run (New Format)
+
+**Minimal:**
+```bash
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "goal": "Write a hello world script"
+  }'
+```
+
+**Full Featured:**
+```bash
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "name": "My Custom Run",
+    "goal": "Write a hello world script",
+    "run_type": "agent",
+    "options": {
+      "dry_run": false,
+      "verbose": true,
+      "max_steps": 10
+    },
+    "metadata": {
+      "priority": "high",
+      "environment": "staging"
+    }
+  }'
+```
+
+**Note:** The old query parameter format (`POST /runs?project_id=X&goal=Y`) is no longer supported. Use JSON body instead.
 
 ---
 
@@ -114,6 +160,9 @@ Open: http://localhost:3001
 ### Console won't start
 - Check: Node modules installed? (`npm install`)
 - Check: Port 3001 available? (`lsof -i :3001`)
+- **Port conflict with Forgejo?** Both use port 3000 by default
+  - Solution: Run console on 3001: `npm run dev -- -p 3001`
+  - Or change Forgejo port in `docker/forgejo/docker-compose.yml`
 
 ### Database errors
 - Location: `agent-runner/db/platform.db`
