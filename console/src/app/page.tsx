@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus, CheckCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAdaptivePolling, usePolling } from '@/hooks/usePolling';
+import { TIMEOUTS } from '@/lib/timeouts';
 import { StatusPill, Card, EmptyState } from '@/components/ui';
 import { CreateRunModal } from '@/components/CreateRunModal';
 
@@ -35,6 +36,8 @@ interface WorkerStatus {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_RUNNER_URL || 'http://localhost:8000';
+const FORGEJO_URL = process.env.NEXT_PUBLIC_FORGEJO_URL || 'http://localhost:3000';
+const TAIGA_URL = process.env.NEXT_PUBLIC_TAIGA_URL || 'http://localhost:9000';
 
 export default function Home() {
   const [filter, setFilter] = useState<'all' | 'active'>('all');
@@ -57,25 +60,26 @@ export default function Home() {
 
   // Fetch runs with adaptive polling (fast when active, slow when idle)
   const { data: runs, loading: runsLoading, error: runsError } = useAdaptivePolling<Run[]>(
-    async () => {
-      const response = await fetch(`${API_URL}/runs`);
+    async (signal) => {
+      const response = await fetch(`${API_URL}/runs`, { signal, cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch runs');
       return response.json();
     },
     (data) => {
       // Fast poll if any runs are active
       return data?.some(run => ['QUEUED', 'RUNNING', 'PAUSED'].includes(run.status)) || false;
-    }
+    },
+    { timeout: TIMEOUTS.runs }
   );
 
   // Fetch worker status (slower fixed polling)
   const { data: workerStatus } = usePolling<WorkerStatus>(
-    async () => {
-      const response = await fetch(`${API_URL}/worker/status`);
+    async (signal) => {
+      const response = await fetch(`${API_URL}/worker/status`, { signal, cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch worker status');
       return response.json();
     },
-    { interval: 5000 } // Check every 5 seconds
+    { interval: 5000, timeout: TIMEOUTS.worker } // Check every 5 seconds
   );
 
   // Filter and search runs
@@ -106,38 +110,46 @@ export default function Home() {
 
   // Check Forgejo and Taiga status
   const { data: forgejoStatus } = usePolling<{ status: string }>(
-    async () => {
+    async (signal) => {
       try {
-        // Try to fetch - if it succeeds (even with opaque response), service is up
-        await fetch('http://localhost:3000', { method: 'HEAD', mode: 'no-cors' });
+        await fetch(FORGEJO_URL, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          signal,
+          cache: 'no-store',
+        });
         return { status: 'online' };
       } catch {
-        // Network error means service is down
+        // Network error, timeout, or abort means service is down/unreachable
         return { status: 'offline' };
       }
     },
-    { interval: 30000 } // Check every 30 seconds
+    { interval: 30000, timeout: TIMEOUTS.health } // Check every 30 seconds
   );
 
   const { data: taigaStatus } = usePolling<{ status: string }>(
-    async () => {
+    async (signal) => {
       try {
-        // Try to fetch - if it succeeds (even with opaque response), service is up
-        await fetch('http://localhost:9000', { method: 'HEAD', mode: 'no-cors' });
+        await fetch(TAIGA_URL, {
+          method: 'HEAD',
+          mode: 'no-cors',
+          signal,
+          cache: 'no-store',
+        });
         return { status: 'online' };
       } catch {
-        // Network error means service is down
+        // Network error, timeout, or abort means service is down/unreachable
         return { status: 'offline' };
       }
     },
-    { interval: 30000 } // Check every 30 seconds
+    { interval: 30000, timeout: TIMEOUTS.health } // Check every 30 seconds
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       {/* Success Toast */}
       {showToast && (
-        <div className="fixed top-4 right-4 z-[60] animate-slide-in">
+        <div className="fixed top-4 right-4 z-60 animate-slide-in">
           <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3">
             <CheckCircle className="w-5 h-5" />
             <span className="font-medium">Run created successfully!</span>
@@ -179,7 +191,7 @@ export default function Home() {
               {/* Forgejo Status (Optional) */}
               {forgejoStatus && (
                 <a
-                  href="http://localhost:3000"
+                  href={FORGEJO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 ${
@@ -199,7 +211,7 @@ export default function Home() {
               {/* Taiga Status (Optional) */}
               {taigaStatus && (
                 <a
-                  href="http://localhost:9000"
+                  href={TAIGA_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80 ${
@@ -335,7 +347,7 @@ export default function Home() {
             </button>
           </div>
 
-          {runsLoading && !runs ? (
+          {runsLoading && !runs && !runsError ? (
             <Card className="p-12">
               <div className="flex items-center justify-center">
                 <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />

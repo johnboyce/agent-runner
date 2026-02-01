@@ -8,8 +8,9 @@ import logging
 import os
 
 # Configure logging
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -41,9 +42,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Agent Runner", lifespan=lifespan)
 
 # Add CORS middleware to allow console to connect
+cors_origins_raw = os.getenv("CORS_ORIGINS", "http://localhost:3001,http://127.0.0.1:3001")
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(",")]
+logging.info(f"CORS origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],  # Console URL
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

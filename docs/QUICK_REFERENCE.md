@@ -69,7 +69,7 @@ Open: http://localhost:3001
 
 | Service | Port | URL |
 |---------|------|-----|
-| Console (UI) | 3000 or 3001 | http://localhost:3000 or :3001 |
+| Console (UI) | 3001 | http://localhost:3001 |
 | Forgejo (Git) | 3000 | http://localhost:3000 |
 | Agent Runner (API) | 8000 | http://localhost:8000 |
 | Taiga (PM) | 9000 | http://localhost:9000 |

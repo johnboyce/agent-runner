@@ -8,8 +8,10 @@ import {
   Terminal, Lightbulb, Cog, Copy, Check, ArrowDown
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { usePolling } from '@/hooks/usePolling';
+import { useRun } from '@/hooks/useRun';
+import { useRunEvents } from '@/hooks/useRunEvents';
 import { StatusPill, Card } from '@/components/ui';
+import { ErrorBanner } from '@/components/ErrorBanner';
 
 interface Run {
   id: number;
@@ -49,41 +51,41 @@ const EVENT_ICONS: Record<string, any> = {
 };
 
 export default function RunDetail({ params }: { params: Promise<{ id: string }> }) {
-  // Unwrap the async params with React.use() for Next.js 16
-  const { id } = use(params);
+  const { id } = use(params); // ✅ unwrap Promise params
   const [directiveText, setDirectiveText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
   const [autoScroll, setAutoScroll] = useState(true);
   const [copiedEventId, setCopiedEventId] = useState<number | null>(null);
   const eventsEndRef = useRef<HTMLDivElement>(null);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
-  // Poll run details
-  const { data: run, loading: runLoading } = usePolling<Run>(
-    async () => {
-      const response = await fetch(`${API_URL}/runs/${id}`);
-      if (!response.ok) throw new Error('Failed to fetch run');
-      return response.json();
-    },
-    {
-      interval: 1500, // Start with fast polling
-      enabled: true
-    }
-  );
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    };
+  }, []);
 
-  // Poll events
-  const { data: events } = usePolling<Event[]>(
-    async () => {
-      const response = await fetch(`${API_URL}/runs/${id}/events`);
-      if (!response.ok) throw new Error('Failed to fetch events');
-      return response.json();
-    },
-    {
-      interval: 1500, // Fast polling for events
-      enabled: true
-    }
-  );
+  // Guard against malformed ID
+  const runId = Number.isFinite(Number(id)) ? Number(id) : null;
+
+  // Use hardened polling hooks
+  const {
+    data: run,
+    loading: runLoading,
+    error: runError,
+    refresh: refreshRun,
+    isTerminal
+  } = useRun(runId);
+
+  const {
+    events,
+    loading: eventsLoading,
+    error: eventsError,
+    refresh: refreshEvents
+  } = useRunEvents(runId, { runStatus: run?.status });
 
   // Auto-scroll to latest event
   useEffect(() => {
@@ -148,7 +150,8 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     try {
       await navigator.clipboard.writeText(text);
       setCopiedEventId(eventId);
-      setTimeout(() => setCopiedEventId(null), 2000);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = setTimeout(() => setCopiedEventId(null), 2000);
     } catch (err) {
       setError('Failed to copy to clipboard');
     }
@@ -163,7 +166,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     ? events[events.length - 1].created_at
     : run?.created_at;
 
-  if (runLoading && !run) {
+  if (!run && (runLoading || eventsLoading)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -241,6 +244,22 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error Banners */}
+        {runError && (
+          <ErrorBanner
+            error={runError}
+            onRetry={refreshRun}
+            onDismiss={() => {}}
+          />
+        )}
+        {eventsError && (
+          <ErrorBanner
+            error={eventsError}
+            onRetry={refreshEvents}
+            onDismiss={() => {}}
+          />
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Controls & Directive */}
           <div className="space-y-6">

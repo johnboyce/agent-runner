@@ -4,16 +4,16 @@
 
 | Service | Port | Technology | Description |
 |---------|------|------------|-------------|
-| **Console** | 3000/3001 | Next.js 14 + TypeScript | Web-based UI for managing projects and runs. Provides dashboard, run detail views, real-time status monitoring, and Create Run modal for configuring new agent executions. Includes status indicators for Worker, Forgejo, and Taiga. |
-| **Agent Runner** | 8000 | FastAPI + Python 3.11 | REST API backend providing endpoints for CRUD operations on projects, runs, and events. Handles validation, database transactions, and serves OpenAPI docs at `/docs`. |
-| **Background Worker** | N/A (in-process) | Python Threading | Background thread within Agent Runner that polls for QUEUED runs every 5 seconds, claims them atomically, executes agent logic, and logs events. Runs in same process as API. |
+| **Console** | 3001 | Next.js 16 + TypeScript | Web-based UI for managing projects and runs. Provides dashboard, run detail views, real-time status monitoring, and Create Run modal for configuring new agent executions. Includes status indicators for Worker, Forgejo, and Taiga. |
+| **Agent Runner** | 8000 | FastAPI + Python 3.11 | REST API backend providing endpoints for CRUD operations on projects, runs, and events. Handles validation, database transactions, and serves OpenAPI docs at `/docs`. Supporting universal binding (0.0.0.0). |
+| **Background Worker** | N/A (in-process) | Python Threading | Background thread within Agent Runner that polls for QUEUED runs, claims them atomically, executes agent logic, and logs events. Configurable via `WORKER_CHECK_INTERVAL`. |
 | **SQLite DB** | N/A (embedded) | SQLite 3 | Embedded relational database storing projects, runs, and events. Located at `agent-runner/db/platform.db`. Simple, local-first, no separate server process. |
 | **Forgejo** | 3000 | Docker (Gitea fork) | Self-hosted Git server for version control and code repository management. Available for use but not yet integrated with agent execution workflow. Status shown in Console UI. |
 | **Taiga** | 9000 | Docker (Django/Angular) | Project management and agile collaboration tool. Provides issue tracking, kanban boards, and sprint planning. Available but not yet integrated. Status shown in Console UI. |
 | **Ollama** | 11434 | Ollama | Local LLM inference server for running models like Llama, Mistral, etc. Planned for agent intelligence but not yet connected to agent execution logic. |
 
 ### Access URLs
-- Console: `http://localhost:3000` or `http://localhost:3001`
+- Console: `http://localhost:3001`
 - Agent Runner API: `http://localhost:8000`
 - Agent Runner Docs: `http://localhost:8000/docs` (Swagger UI)
 - Forgejo: `http://localhost:3000` (if running)
@@ -23,9 +23,8 @@
 - **Background Worker** and **SQLite DB** are embedded components that don't have separate ports
 - **Forgejo** and **Taiga** runtime status is shown via indicators in the Console UI header
 - **Ollama** is planned for future implementation to provide LLM capabilities to the agent
-- **Port Conflict:** Console and Forgejo both default to port 3000. To run both:
-  - Run Console on port 3001: `npm run dev -- -p 3001`
-  - Or change Forgejo port in `docker/forgejo/docker-compose.yml`
+- **Port Conflict:** Console and Forgejo previously both defaulted to port 3000. Console has been moved to port 3001 to resolve this.
+- **Environment Variables:** All service URLs, polling intervals, and timeouts are configurable via `.env` files.
 
 ---
 
@@ -37,13 +36,13 @@
 │                         (Web Browser)                            │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
-                            │ HTTP (Port 3000/3001)
+                            │ HTTP (Port 3001)
                             │
 ┌───────────────────────────▼─────────────────────────────────────┐
 │                      CONSOLE (Frontend)                          │
 │                         ✅ ACTIVE                                │
 │                                                                  │
-│  Next.js 14 + TypeScript + App Router                          │
+│  Next.js 16 + TypeScript + App Router                          │
 │  ┌────────────────┐  ┌──────────────────┐  ┌───────────────┐  │
 │  │  Home Page     │  │  Run Detail Page │  │  Status Bar   │  │
 │  │  /             │  │  /runs/[id]      │  │               │  │
@@ -127,7 +126,7 @@
 │                                                                  │
 │  ┌────────────────────────────────┐  ┌──────────────────────┐  │
 │  │  Forgejo (Git Server)          │  │  Taiga (PM)          │  │
-│  │  Port: 3002                    │  │  Port: 9000          │  │
+│  │  Port: 3000                    │  │  Port: 9000          │  │
 │  │                                │  │                      │  │
 │  │  - Self-hosted Git             │  │  - Project mgmt      │  │
 │  │  - Repository management       │  │  - Issue tracking    │  │
@@ -323,12 +322,12 @@ Browser                Console               Agent Runner         Database      
 ## 📦 Component Details
 
 ### Console (Frontend)
-- **Framework**: Next.js 14 with App Router
+- **Framework**: Next.js 16 with App Router
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS (via globals.css)
-- **State**: React hooks (useState, useEffect)
-- **API Client**: Native fetch API
-- **Routing**: File-based routing
+- **Styling**: Tailwind CSS 4
+- **State**: React 18 hooks (useState, useEffect, useRef, useCallback)
+- **Polling**: Hardened custom hooks (`useRun`, `useRunEvents`, `usePolling`)
+- **API Client**: Native fetch API with timeout wrapper
 
 ### Agent Runner (Backend)
 - **Framework**: FastAPI

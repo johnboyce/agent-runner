@@ -10,6 +10,9 @@
 # Install dependencies
 make install
 
+# Configure environment (optional, defaults provided)
+# Edit console/.env.local or agent-runner/.env if needed
+
 # Start all services
 make start
 
@@ -86,6 +89,45 @@ For all available commands: `make help`
 - A "push button, ship to prod" AI
 - A black-box prompt playground
 - A replacement for human judgment
+
+## Configuration
+
+The system is highly configurable via environment variables.
+
+### Console (Frontend)
+Edit `console/.env.local` to configure:
+- `NEXT_PUBLIC_AGENT_RUNNER_URL`: URL of the backend API (default: `http://localhost:8000`)
+- `NEXT_PUBLIC_FORGEJO_URL`: URL of the Forgejo instance (default: `http://localhost:3000`)
+- `NEXT_PUBLIC_TAIGA_URL`: URL of the Taiga instance (default: `http://localhost:9000`)
+- `NEXT_PUBLIC_POLLING_INTERVAL_FAST`: Polling speed for active runs (ms) (default: `1500`)
+- `NEXT_PUBLIC_EVENT_MAX_BUFFER`: Max events to keep in browser memory (default: `1000`)
+
+### Verification
+You can verify the connection between the Console and the Agent Runner by running:
+```bash
+make test-cors
+```
+This script simulates browser requests (including CORS preflights) and ensures the backend is correctly configured.
+
+### Agent Runner (Backend)
+Edit `agent-runner/.env` to configure:
+- `CORS_ORIGINS`: Allowed origins for CORS (default: `http://localhost:3001,http://127.0.0.1:3001,http://0.0.0.0:3001`)
+- `DATABASE_URL`: SQLAlchemy database URL (default: `sqlite:///./db/platform.db`)
+- `LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR) (default: `INFO`)
+- `WORKER_CHECK_INTERVAL`: Seconds between worker polls (default: `5`)
+- `WORKER_BATCH_SIZE`: Max runs to process per cycle (default: `10`)
+
+> **Note:** The Agent Runner binds to `0.0.0.0` by default to ensure it is reachable via both IPv4 and IPv6 loopback addresses (`localhost` vs `127.0.0.1` vs `::1`).
+- `DISABLE_WORKER`: Set to `true` to disable the background worker (default: `false`)
+
+### Makefile
+You can also override ports directly in the `Makefile` or via environment variables when running `make`:
+- `PORT_AGENT` (default: 8000)
+- `PORT_CONSOLE` (default: 3001)
+- `PORT_FORGEJO` (default: 3000)
+- `PORT_TAIGA` (default: 9000)
+
+Example: `PORT_CONSOLE=4000 make start-console`
 
 ---
 

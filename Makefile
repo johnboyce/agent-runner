@@ -1,3 +1,9 @@
+# Configuration
+PORT_AGENT ?= 8000
+PORT_CONSOLE ?= 3001
+PORT_FORGEJO ?= 3000
+PORT_TAIGA ?= 9000
+
 .PHONY: help install start stop restart clean test status logs git-diff
 
 # Default target
@@ -23,6 +29,7 @@ help:
 	@echo "  make test-verbose     Run tests with verbose output"
 	@echo "  make test-coverage    Run tests with coverage report"
 	@echo "  make test-agent       Test agent execution end-to-end"
+	@echo "  make test-cors        Verify CORS configuration for Console"
 	@echo "  make logs             Show service logs"
 	@echo "  make git-diff         Show git diff and copy to clipboard"
 	@echo ""
@@ -57,29 +64,31 @@ start:
 	@sleep 3
 	@$(MAKE) start-console-bg
 	@echo "✅ Services started"
-	@echo "   Agent Runner: http://localhost:8000"
-	@echo "   Console:      http://localhost:3001"
+	@echo "   Agent Runner: http://localhost:$(PORT_AGENT)"
+	@echo "   Console:      http://localhost:$(PORT_CONSOLE)"
 
 start-agent:
 	@echo "🚀 Starting agent runner..."
 	cd agent-runner && . .venv/bin/activate && \
-		python -m uvicorn app.main:app --reload --port 8000
+		[ -f .env ] && export $$(grep -v '^#' .env | xargs) || true && \
+		python -m uvicorn app.main:app --reload --port $(PORT_AGENT) --host 0.0.0.0
 
 start-agent-bg:
 	@echo "🚀 Starting agent runner (background)..."
 	@cd agent-runner && . .venv/bin/activate && \
-		python -m uvicorn app.main:app --reload --port 8000 > /tmp/agent-runner.log 2>&1 & \
+		[ -f .env ] && export $$(grep -v '^#' .env | xargs) || true && \
+		python -m uvicorn app.main:app --reload --port $(PORT_AGENT) --host 0.0.0.0 > /tmp/agent-runner.log 2>&1 & \
 		echo $$! > /tmp/agent-runner.pid
 	@echo "   PID: $$(cat /tmp/agent-runner.pid)"
 	@echo "   Logs: tail -f /tmp/agent-runner.log"
 
 start-console:
 	@echo "🚀 Starting console..."
-	cd console && npm run dev -- -p 3001
+	cd console && npm run dev -- -p $(PORT_CONSOLE)
 
 start-console-bg:
 	@echo "🚀 Starting console (background)..."
-	@cd console && npm run dev -- -p 3001 > /tmp/console.log 2>&1 & \
+	@cd console && npm run dev -- -p $(PORT_CONSOLE) > /tmp/console.log 2>&1 & \
 		echo $$! > /tmp/console.pid
 	@echo "   PID: $$(cat /tmp/console.pid)"
 	@echo "   Logs: tail -f /tmp/console.log"
@@ -187,6 +196,10 @@ test-coverage:
 test-agent:
 	@echo "🧪 Testing agent execution..."
 	@./scripts/test-agent-execution.sh
+
+test-cors:
+	@echo "🧪 Verifying CORS configuration..."
+	@node scripts/verify-cors.js
 
 # Quick development commands
 dev: start

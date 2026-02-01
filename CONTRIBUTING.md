@@ -6,7 +6,7 @@ Thank you for your interest in contributing to AI Dev Factory!
 
 ### Prerequisites
 - Python 3.8+
-- Node.js 18+
+- Node.js 20+
 - Make (for build commands)
 - Docker and Docker Compose (for Forgejo/Taiga)
 
@@ -42,10 +42,13 @@ ai-dev-factory/
 │   └── requirements.txt  # Python dependencies
 │
 ├── console/              # Next.js frontend
-│   ├── src/app/
-│   │   ├── page.tsx      # Home page (projects + runs list)
-│   │   └── runs/[id]/    # Run detail page
-│   └── package.json
+│   ├── src/
+│   │   ├── app/          # Next.js App Router (pages)
+│   │   ├── components/   # Reusable UI components
+│   │   ├── hooks/        # Hardened polling hooks (useRun, etc.)
+│   │   └── lib/          # Utilities (timeout, etc.)
+│   ├── package.json
+│   └── .env.local        # Environment variables
 │
 ├── docs/                 # Active documentation
 │   ├── README.md         # Documentation overview
@@ -90,16 +93,31 @@ make status
 
 2. **Make your changes** following the code style below
 
-3. **Test your changes**
+3. **Configure environment** if needed (see `README.md` for details)
    ```bash
-   # Restart services to pick up changes
-   make restart
-   
-   # Test manually at http://localhost:3001
-   
-   # TODO: Add automated tests
-   # make test
+   # Create .env files from templates
+   cp console/.env.example console/.env.local
+   cp agent-runner/.env.example agent-runner/.env
    ```
+
+### Testing Your Changes
+
+Automated tests are required for new logic.
+
+```bash
+# Run all tests
+make test
+
+# Run specific tests
+make test-verbose
+make test-coverage
+
+# Verify E2E agent flow
+make test-agent
+
+# Verify CORS configuration
+make test-cors
+```
 
 4. **Commit with conventional commits**
    ```bash
@@ -146,8 +164,9 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
 
 - Use TypeScript strict mode
 - Use functional components with hooks
-- Handle loading and error states
-- Use proper types (no `any`)
+- **Polling Logic**: Use existing hardened hooks (`usePolling`, `useRun`, `useRunEvents`). These hooks handle visibility changes, aborting in-flight requests, and stale closure protection via refs.
+- Handle loading and error states explicitly (loading state should settle to `false` even on errors).
+- Use proper types (no `any` unless absolutely necessary).
 
 **Example:**
 ```typescript
@@ -194,26 +213,36 @@ const [error, setError] = useState<string | null>(null);
 
 ## Testing
 
+### Automated Testing
+
+We use `pytest` for the Python backend and `Jest` for the TypeScript frontend.
+
+```bash
+# Run all tests
+make test
+
+# Backend only
+cd agent-runner && pytest
+
+# Frontend only
+cd console && npm test
+```
+
 ### Manual Testing
 
 ```bash
 # Create test data
 make seed
 
-# Test API directly
-curl http://localhost:8000/projects
-curl http://localhost:8000/runs
+# Verify E2E flow (requires agent runner to be running)
+make test-agent
+
+# Verify CORS (simulates browser requests)
+make test-cors
 
 # Test in browser
 open http://localhost:3001
 ```
-
-### Automated Testing (TODO)
-
-We plan to add:
-- Python: pytest for agent runner
-- TypeScript: Jest + React Testing Library for console
-- E2E: Playwright for integration tests
 
 ---
 
@@ -290,8 +319,9 @@ make db-shell
 
 1. Check agent runner is running: `make status`
 2. Check for CORS errors in browser console (F12)
-3. Verify `.env.local` exists in console directory
-4. See `docs/_analysis/FIX_LOADING_ISSUE_2026-01-31.md`
+3. Run `make test-cors` to verify backend configuration
+4. Verify `.env.local` exists in `console/` and `.env` exists in `agent-runner/`
+5. See `docs/_analysis/FIX_LOADING_ISSUE_2026-01-31.md`
 
 ---
 

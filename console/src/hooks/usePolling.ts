@@ -1,135 +1,313 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { withTimeout } from '@/lib/timeout';
+import { TIMEOUTS } from '@/lib/timeouts';
 
-interface UsePollingOptions {
+export interface UsePollingOptions {
   interval?: number;
   enabled?: boolean;
+  immediate?: boolean;
+  stopOnHidden?: boolean;
+  timeout?: number;
 }
 
 export function usePolling<T>(
-  fetcher: () => Promise<T>,
+  fetcher: (signal: AbortSignal) => Promise<T>,
   options: UsePollingOptions = {}
 ): { data: T | null; loading: boolean; error: string | null; refetch: () => void } {
-  const { interval = 2000, enabled = true } = options;
+  const {
+    interval = 2000,
+    enabled = true,
+    immediate = true,
+    stopOnHidden = true,
+    timeout = TIMEOUTS.health,
+  } = options;
+
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Store fetcher in ref to avoid stale closures
+  const mountedRef = useRef(false);
+  const enabledRef = useRef(enabled);
+  const visibleRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const stopOnHiddenRef = useRef(stopOnHidden);
+
   const fetcherRef = useRef(fetcher);
-  useEffect(() => {
-    fetcherRef.current = fetcher;
-  }, [fetcher]);
-
-  const fetchData = async () => {
-    try {
-      const result = await fetcherRef.current();
-      if (mountedRef.current) {
-        setData(result);
-        setError(null);
-        setLoading(false);
-      }
-    } catch (err) {
-      if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
-        setLoading(false);
-      }
-    }
-  };
+  useEffect(() => { fetcherRef.current = fetcher; }, [fetcher]);
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
+  useEffect(() => { stopOnHiddenRef.current = stopOnHidden; }, [stopOnHidden]);
 
   useEffect(() => {
     mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const clearTimer = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const abortInFlight = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
+
+  const shouldRun = () =>
+    mountedRef.current &&
+    enabledRef.current &&
+    (!stopOnHiddenRef.current || visibleRef.current);
+
+  const fetchData = useCallback(async () => {
+    if (!shouldRun()) return;
+    if (inFlightRef.current) return;
+
+    clearTimer();
+    abortInFlight();
+
+    abortRef.current = new AbortController();
+    inFlightRef.current = true;
+
+    const { signal, cleanup } = withTimeout(abortRef.current.signal, timeout);
+
+    try {
+      const result = await fetcherRef.current(signal);
+
+      if (!shouldRun()) return;
+      setData(result);
+      setError(null);
+      setLoading(false);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      if (!shouldRun()) return;
+
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      setLoading(false);
+    } finally {
+      cleanup();
+      inFlightRef.current = false;
+
+      if (shouldRun()) {
+        timeoutRef.current = setTimeout(fetchData, interval);
+      }
+    }
+  }, [interval, timeout]);
+
+  // Visibility handling (always installed; shouldRun() decides behavior)
+  useEffect(() => {
+    const onVis = () => {
+      visibleRef.current = !document.hidden;
+
+      if (shouldRun()) {
+        fetchData(); // kick immediately on visible
+      } else {
+        clearTimer();
+        abortInFlight();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [fetchData]);
+
+  // Start/stop polling lifecycle
+  useEffect(() => {
+    clearTimer();
+    abortInFlight();
+
+    visibleRef.current = !document.hidden;
 
     if (!enabled) {
-      mountedRef.current = false;
+      setLoading(false);
       return;
     }
 
-    const poll = async () => {
-      await fetchData();
-      if (mountedRef.current) {
-        timeoutRef.current = setTimeout(poll, interval);
-      }
-    };
+    // If we’re configured to stop on hidden and we’re hidden, we pause cleanly
+    if (stopOnHiddenRef.current && document.hidden) {
+      setLoading(false);
+      return;
+    }
 
-    // Start polling immediately
-    poll();
+    if (immediate) {
+      setLoading(true);
+      fetchData();
+    } else {
+      timeoutRef.current = setTimeout(fetchData, interval);
+    }
 
     return () => {
-      mountedRef.current = false;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      clearTimer();
+      abortInFlight();
     };
-  }, [interval, enabled]);
+  }, [enabled, interval, immediate, fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  const refetch = useCallback(() => {
+    if (!mountedRef.current) return;
+    setLoading(true);
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refetch };
+}
+
+export interface UseAdaptivePollingOptions {
+  enabled?: boolean;
+  activeInterval?: number;
+  idleInterval?: number;
+  immediate?: boolean;
+  stopOnHidden?: boolean;
+  timeout?: number;
 }
 
 export function useAdaptivePolling<T>(
-  fetcher: () => Promise<T>,
-  isActive: (data: T | null) => boolean
+  fetcher: (signal: AbortSignal) => Promise<T>,
+  isActive: (data: T | null) => boolean,
+  options: UseAdaptivePollingOptions = {}
 ): { data: T | null; loading: boolean; error: string | null; refetch: () => void } {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const mountedRef = useRef(true);
+  const {
+    enabled = true,
+    activeInterval = 1500,
+    idleInterval = 5000,
+    immediate = true,
+    stopOnHidden = true,
+    timeout = TIMEOUTS.worker,
+  } = options;
 
-  // Store fetcher and isActive in refs to avoid stale closures
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const mountedRef = useRef(false);
+  const enabledRef = useRef(enabled);
+  const visibleRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const stopOnHiddenRef = useRef(stopOnHidden);
+
   const fetcherRef = useRef(fetcher);
   const isActiveRef = useRef(isActive);
 
-  useEffect(() => {
-    fetcherRef.current = fetcher;
-  }, [fetcher]);
-
-  useEffect(() => {
-    isActiveRef.current = isActive;
-  }, [isActive]);
-
-  const fetchData = async () => {
-    try {
-      const result = await fetcherRef.current();
-      if (mountedRef.current) {
-        setData(result);
-        setError(null);
-        setLoading(false);
-      }
-      return result;
-    } catch (err) {
-      if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
-        setLoading(false);
-      }
-      return null;
-    }
-  };
+  useEffect(() => { fetcherRef.current = fetcher; }, [fetcher]);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
+  useEffect(() => { stopOnHiddenRef.current = stopOnHidden; }, [stopOnHidden]);
 
   useEffect(() => {
     mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
-    const poll = async () => {
-      const result = await fetchData();
-      if (!mountedRef.current) return;
+  const clearTimer = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
 
-      const active = isActiveRef.current(result);
-      const interval = active ? 1500 : 5000; // Fast poll when active, slow when idle
+  const abortInFlight = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
 
-      timeoutRef.current = setTimeout(poll, interval);
-    };
+  const shouldRun = () =>
+    mountedRef.current &&
+    enabledRef.current &&
+    (!stopOnHiddenRef.current || visibleRef.current);
 
-    // Start polling immediately
-    poll();
+  const poll = useCallback(async () => {
+    if (!shouldRun()) return;
+    if (inFlightRef.current) return;
 
-    return () => {
-      mountedRef.current = false;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    clearTimer();
+    abortInFlight();
+
+    abortRef.current = new AbortController();
+    inFlightRef.current = true;
+
+    const { signal, cleanup } = withTimeout(abortRef.current.signal, timeout);
+
+    try {
+      const result = await fetcherRef.current(signal);
+
+      if (!shouldRun()) return;
+
+      setData(result);
+      setError(null);
+      setLoading(false);
+
+      const next = isActiveRef.current(result) ? activeInterval : idleInterval;
+      timeoutRef.current = setTimeout(poll, next);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      if (!shouldRun()) return;
+
+      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      setLoading(false);
+
+      timeoutRef.current = setTimeout(poll, idleInterval);
+    } finally {
+      cleanup();
+      inFlightRef.current = false;
+    }
+  }, [activeInterval, idleInterval, timeout]);
+
+  // Visibility handling (always installed)
+  useEffect(() => {
+    const onVis = () => {
+      visibleRef.current = !document.hidden;
+
+      if (shouldRun()) {
+        poll();
+      } else {
+        clearTimer();
+        abortInFlight();
       }
     };
-  }, []); // Empty deps safe because we use refs
 
-  return { data, loading, error, refetch: fetchData };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [poll]);
+
+  useEffect(() => {
+    clearTimer();
+    abortInFlight();
+
+    visibleRef.current = !document.hidden;
+
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
+    if (stopOnHiddenRef.current && document.hidden) {
+      setLoading(false);
+      return;
+    }
+
+    if (immediate) {
+      setLoading(true);
+      poll();
+    } else {
+      timeoutRef.current = setTimeout(poll, idleInterval);
+    }
+
+    return () => {
+      clearTimer();
+      abortInFlight();
+    };
+  }, [enabled, immediate, idleInterval, poll]);
+
+  const refetch = useCallback(() => {
+    if (!mountedRef.current) return;
+    setLoading(true);
+    poll();
+  }, [poll]);
+
+  return { data, loading, error, refetch };
 }

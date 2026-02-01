@@ -90,7 +90,9 @@ make start-agent
 curl -X POST "http://localhost:8000/projects?name=test&local_path=/tmp/test"
 
 # 3. Create a run
-curl -X POST "http://localhost:8000/runs?project_id=1&goal=Test%20execution"
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "goal": "Test execution"}'
 
 # 4. Watch it process (should take ~3-4 seconds)
 watch -n 1 'curl -s http://localhost:8000/runs/1 | python3 -m json.tool'
@@ -108,10 +110,13 @@ make start
 open http://localhost:3001
 
 # 3. Create a run via API
-curl -X POST "http://localhost:8000/runs?project_id=1&goal=Test%20from%20UI"
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "goal": "Test from UI"}'
 
-# 4. Watch it in the UI (you'll need to refresh)
+# 4. Watch it in the UI
 # The run will automatically transition from QUEUED → RUNNING → COMPLETED
+# No refresh required - the UI uses hardened polling hooks.
 ```
 
 ## API Endpoints Added
@@ -162,9 +167,9 @@ This is a **"dumb agent"** - it doesn't do real work yet. Future enhancements:
 
 ## Configuration
 
-The worker can be configured in `worker.py`:
-- `check_interval`: How often to check for queued runs (default: 5 seconds)
-- Make it faster for testing, slower for production
+The worker can be configured in `.env` (backend) and `worker.py`:
+- `WORKER_CHECK_INTERVAL`: How often to check for queued runs (default: 5 seconds)
+- `WORKER_BATCH_SIZE`: How many runs to process in one cycle (default: 10)
 
 ## Troubleshooting
 

@@ -2,24 +2,44 @@
 
 ## Overview
 
-The agent-runner includes comprehensive unit and integration tests using pytest.
+The system includes comprehensive tests for both the Python backend (`pytest`) and the TypeScript frontend (`Jest`).
 
 ## Running Tests
 
-### Quick Start
+### Makefile Targets (Unified)
 
 ```bash
-# Run all tests
+# Run all tests (backend + frontend)
 make test
 
-# Run with verbose output
+# Backend only (verbose)
 make test-verbose
 
-# Run with coverage report
+# Backend with coverage
 make test-coverage
 
-# Run end-to-end agent execution test
+# End-to-end agent execution test
 make test-agent
+
+# Verify CORS configuration
+make test-cors
+```
+
+### Frontend (Jest)
+
+Tests for React hooks (`useRun`, `useRunEvents`) are located in `console/src/hooks/__tests__/`.
+
+```bash
+cd console
+
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Watch mode for development
+npm run test:watch
 ```
 
 ### Manual pytest Commands
@@ -257,7 +277,7 @@ Tests use:
 - [ ] Add E2E tests with real database
 - [ ] Add mutation testing
 - [ ] Add contract tests for API
-- [ ] Add frontend tests (React Testing Library)
+- [x] Add frontend tests (Jest/React Testing Library)
 - [ ] Set up GitHub Actions CI
 
 ---

@@ -4,6 +4,7 @@ Simple agent executor that processes runs in the background.
 This is a "dumb agent" - just proves the execution flow works.
 Future versions will add real LLM integration, file operations, etc.
 """
+import os
 import time
 import logging
 from typing import Optional
@@ -123,12 +124,15 @@ class SimpleAgent:
             logger.error(f"Failed to log event: {e}")
             # Don't rollback - let caller decide
 
-    def process_queued_runs(self, max_runs: int = 10):
+    def process_queued_runs(self, max_runs: Optional[int] = None):
         """
         Process all queued runs (up to max_runs).
 
         This is called by the background worker.
         """
+        if max_runs is None:
+            max_runs = int(os.getenv("WORKER_BATCH_SIZE", "10"))
+        
         db = SessionLocal()
         try:
             queued_runs = db.query(Run).filter(
