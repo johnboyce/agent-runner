@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { X, Loader2, Plus, AlertCircle } from 'lucide-react';
 
 interface Project {
@@ -228,20 +229,28 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     You need to create a project before you can create a run.
                   </p>
                   <p className="text-sm text-yellow-600 mb-4">
-                    Create a project using:
+                    Create a project using the UI or the API:
                   </p>
-                  <code className="block bg-yellow-100 text-yellow-900 p-3 rounded text-sm font-mono">
+                  <code className="block bg-yellow-100 text-yellow-900 p-3 rounded text-sm font-mono mb-4">
                     curl -X POST "http://localhost:8000/projects?name=my-project&local_path=/path/to/project"
                   </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      fetchProjects();
-                    }}
-                    className="mt-4 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-                  >
-                    Refresh Projects
-                  </button>
+                  <div className="flex gap-3 justify-center">
+                    <Link
+                      href="/projects"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    >
+                      Go to Projects
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        fetchProjects();
+                      }}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                    >
+                      Refresh Projects
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -255,7 +264,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     id="project"
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                     required
                     disabled={loading}
                   >
@@ -301,7 +310,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     id="runType"
                     value={runType}
                     onChange={(e) => setRunType(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                     disabled={loading}
                   >
                     <option value="agent">Agent</option>
@@ -309,6 +318,15 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     <option value="pipeline">Pipeline</option>
                     <option value="task">Task</option>
                   </select>
+                  <div className="mt-2 text-xs text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="font-medium text-blue-900 mb-1">Run Type Descriptions:</p>
+                    <ul className="space-y-1 ml-2">
+                      <li><strong>Agent:</strong> Autonomous AI agent that executes tasks independently</li>
+                      <li><strong>Workflow:</strong> Multi-step process with defined stages and transitions</li>
+                      <li><strong>Pipeline:</strong> Sequential data processing with input/output stages</li>
+                      <li><strong>Task:</strong> Single-purpose execution unit for specific operations</li>
+                    </ul>
+                  </div>
                 </div>
 
                 {/* Goal Input */}
