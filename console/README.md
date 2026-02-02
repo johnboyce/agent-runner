@@ -71,6 +71,125 @@ NEXT_PUBLIC_AGENT_RUNNER_URL=http://localhost:8000
 
 ## Architecture
 
+### Component Hierarchy
+
+```mermaid
+flowchart TD
+    App[Next.js App Router]
+    
+    App --> HomePage[/ Page<br/>Dashboard]
+    App --> RunPage[/runs/[id] Page<br/>Run Detail]
+    
+    HomePage --> Stats[Statistics Cards]
+    HomePage --> Filters[Search & Filter Bar]
+    HomePage --> RunsList[Runs List]
+    
+    RunPage --> RunHeader[Run Header<br/>Status & Controls]
+    RunPage --> Timeline[Event Timeline]
+    RunPage --> DirectiveForm[Directive Input]
+    
+    RunsList --> RunCard[Run Card Component]
+    RunCard --> StatusPill[Status Pill]
+    
+    Timeline --> TimelineEvent[Timeline Event]
+    TimelineEvent --> EventIcon[Event Icon]
+    TimelineEvent --> EventPayload[Event Payload]
+    
+    subgraph "Custom Hooks"
+        useRun[useRun Hook<br/>Fetch & poll single run]
+        useRuns[useRuns Hook<br/>Fetch & poll all runs]
+        useRunEvents[useRunEvents Hook<br/>Fetch & poll events]
+        usePolling[usePolling Hook<br/>Generic polling]
+    end
+    
+    HomePage -.uses.-> useRuns
+    RunPage -.uses.-> useRun
+    RunPage -.uses.-> useRunEvents
+    
+    useRuns -.extends.-> usePolling
+    useRun -.extends.-> usePolling
+    useRunEvents -.extends.-> usePolling
+    
+    style App fill:#4A90E2
+    style usePolling fill:#50C878
+    style StatusPill fill:#FFD700
+```
+
+### Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Page as Next.js Page
+    participant Hook as Custom Hook
+    participant API as Agent Runner API
+    participant State as React State
+    
+    User->>Page: Visit page
+    Page->>Hook: Initialize hook
+    
+    activate Hook
+    Hook->>API: Initial fetch
+    API-->>Hook: Data response
+    Hook->>State: Set data & loading=false
+    State-->>Page: Trigger re-render
+    Page->>User: Display data
+    
+    Note over Hook: Start polling interval
+    
+    loop Every 1.5s (while active)
+        Hook->>API: Poll for updates
+        API-->>Hook: Updated data
+        Hook->>State: Update data if changed
+        State-->>Page: Re-render with new data
+        Page->>User: Show updated UI
+    end
+    
+    User->>Page: Leave page / unmount
+    Page->>Hook: Cleanup
+    Hook->>Hook: Cancel polling
+    deactivate Hook
+```
+
+### Polling Architecture
+
+```mermaid
+flowchart TD
+    Start[Component Mounts] --> Init[Initialize Hook]
+    Init --> Fetch1[Initial Fetch]
+    Fetch1 --> Display[Display Data]
+    Display --> Wait{Polling Enabled?}
+    
+    Wait -->|Yes| CheckActive{Data Active?}
+    Wait -->|No| Stop[Stop Polling]
+    
+    CheckActive -->|Yes| Fast[Fast Poll<br/>1.5 seconds]
+    CheckActive -->|No| Slow[Slow Poll<br/>5 seconds]
+    
+    Fast --> FetchFast[Fetch Update]
+    Slow --> FetchSlow[Fetch Update]
+    
+    FetchFast --> UpdateFast{Data Changed?}
+    FetchSlow --> UpdateSlow{Data Changed?}
+    
+    UpdateFast -->|Yes| RerenderFast[Update State<br/>Re-render]
+    UpdateFast -->|No| SkipFast[Skip Update]
+    UpdateSlow -->|Yes| RerenderSlow[Update State<br/>Re-render]
+    UpdateSlow -->|No| SkipSlow[Skip Update]
+    
+    RerenderFast --> Wait
+    SkipFast --> Wait
+    RerenderSlow --> Wait
+    SkipSlow --> Wait
+    
+    Stop --> Unmount[Component Unmounts]
+    
+    style Fast fill:#90EE90
+    style Slow fill:#87CEEB
+    style RerenderFast fill:#98FB98
+    style RerenderSlow fill:#98FB98
+```
+
 ### Custom Hooks
 
 #### `usePolling<T>`

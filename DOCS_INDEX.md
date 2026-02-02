@@ -106,6 +106,7 @@ curl -X POST "http://localhost:8000/runs" \
 |------|---------|--------------|
 | **[README.md](docs/README.md)** | Documentation index and overview | Start here |
 | **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System architecture, diagrams, data flows | Understanding the system |
+| **[API_REFERENCE.md](docs/API_REFERENCE.md)** | Complete REST API documentation with examples | Working with the API |
 | **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** | Commands, ports, API reference | Daily development |
 | **[CREATE_RUN_MODAL_IMPLEMENTATION.md](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md)** | Create Run feature documentation | Understanding new features |
 | **[TESTING.md](docs/TESTING.md)** | Testing guide and coverage | Running tests |
@@ -194,7 +195,8 @@ flowchart TD
 | Need | File | Section |
 |------|------|---------|
 | Start services | [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) | "Start Everything" |
-| API endpoints | [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) | "API Endpoints" |
+| API endpoints | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | "Endpoints" |
+| API examples | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | "Examples" |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | All sections |
 | System design | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Diagrams |
 | Data flow | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | "Data Flow" |
@@ -274,9 +276,10 @@ open http://localhost:3000
 ## 📌 **Bookmark These**
 
 Most useful for daily work:
-1. [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - Commands and API
-2. [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) - Latest features
-3. Root [`README.md`](README.md) - Project philosophy
+1. [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - Commands and shortcuts
+2. [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) - Complete API documentation
+3. [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) - Latest features
+4. Root [`README.md`](README.md) - Project philosophy
 
 Most useful for understanding:
 1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Technical design

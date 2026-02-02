@@ -6,9 +6,18 @@
 Complete system architecture with:
 - Service overview table (Next.js 16 console on port 3001)
 - Visual architecture diagrams
-- Data flow diagrams
-- Database schema
+- Data flow diagrams with Mermaid sequence diagrams
+- Database schema with ERD
 - Component interactions
+
+### **[API_REFERENCE.md](./API_REFERENCE.md)** - Complete API Documentation
+Comprehensive REST API reference with:
+- All endpoints documented with examples
+- Request/response schemas
+- Sequence diagrams for API flows
+- Error handling guide
+- Best practices and usage patterns
+- Interactive Swagger UI link
 
 ### **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Quick Reference
 Daily reference guide with:
