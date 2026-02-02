@@ -263,7 +263,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                       <option value="" disabled>Select a project...</option>
                     )}
                     {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
+                      <option key={project.id} value={project.id.toString()}>
                         {project.name} ({project.local_path})
                       </option>
                     ))}
