@@ -219,6 +219,14 @@ Open: http://localhost:3000
 This project is **actively evolving**.
 The core run → execution → event loop is complete and hardened.
 
+**Recent additions:**
+- ✅ Workflow system with LLM integration (Ollama)
+- ✅ quarkus-bootstrap-v1 workflow for Quarkus project generation
+- ✅ Event-driven execution with full observability
+- ✅ Artifact capture and timeline tracking
+
+See [Workflow Documentation](docs/WORKFLOWS.md) for details.
+
 ---
 
 ## License
