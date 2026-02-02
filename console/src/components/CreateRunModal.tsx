@@ -20,6 +20,21 @@ interface RunOptions {
   max_steps: number | null;
 }
 
+/**
+ * CreateRunModal - Modal dialog for creating new agent runs
+ * 
+ * Provides a comprehensive form for creating runs with:
+ * - Project selection
+ * - Run configuration (name, type, goal)
+ * - Execution options (dry run, verbose, max steps)
+ * - Custom metadata in JSON format
+ * 
+ * @param isOpen - Controls modal visibility
+ * @param onClose - Callback when modal is closed
+ * @param onSuccess - Callback with run ID when run is created successfully
+ * @param apiUrl - Base URL for the API
+ * @returns Modal component for run creation
+ */
 export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRunModalProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');

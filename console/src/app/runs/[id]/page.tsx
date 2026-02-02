@@ -166,7 +166,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     ? events[events.length - 1].created_at
     : run?.created_at;
 
-  if (!run && (runLoading || eventsLoading)) {
+  if (!run && runLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
