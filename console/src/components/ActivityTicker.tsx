@@ -2,18 +2,12 @@
 
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-
-interface ActivityTickerProps {
-  lastEventId?: number;
-  lastEventTime?: string;
-}
 
 /**
  * Activity Ticker - A minimal, text-only status indicator
  * Shows what the UI is currently doing based on React Query state
  */
-export function ActivityTicker({ lastEventId, lastEventTime }: ActivityTickerProps) {
+export function ActivityTicker() {
   // Get global fetching and mutation state from React Query
   const isFetchingCount = useIsFetching();
   const isMutatingCount = useIsMutating();
@@ -43,28 +37,12 @@ export function ActivityTicker({ lastEventId, lastEventTime }: ActivityTickerPro
 
     // Build status text
     if (parts.length > 0) {
-      let status = parts.join(' · ');
-      
-      // Add last event info if available
-      if (lastEventId && fetchingEvents > 0) {
-        status += ` · Last event #${lastEventId}`;
-      }
-      
-      return status;
+      return parts.join(' · ');
     }
 
-    // Idle state with optional last update info
-    if (lastEventTime) {
-      try {
-        const lastUpdate = formatDistanceToNow(new Date(lastEventTime), { addSuffix: true });
-        return `Idle · Last update ${lastUpdate}`;
-      } catch {
-        return 'Idle · All data up to date';
-      }
-    }
-
+    // Idle state - simple and clean
     return 'Idle · All data up to date';
-  }, [isMutatingCount, lastEventId, lastEventTime, fetchingRuns, fetchingRun, fetchingEvents]);
+  }, [isMutatingCount, fetchingRuns, fetchingRun, fetchingEvents]);
 
   // Determine if we're actively fetching
   const isActive = isFetchingCount > 0 || isMutatingCount > 0;

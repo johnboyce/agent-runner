@@ -113,7 +113,8 @@ export function useRunEventsQuery(
       // One last refetch to catch final events
       query.refetch();
     }
-  }, [runStatus, enabled, runId, query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runStatus, enabled, runId]); // Intentionally not including query to avoid excess reruns
 
   return {
     events: query.data || [],
