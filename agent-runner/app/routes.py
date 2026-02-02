@@ -22,6 +22,8 @@ class DirectiveIn(BaseModel):
     text: str
 
 class CreateRunRequest(BaseModel):
+    model_config = {"extra": "ignore"}
+    
     project_id: int
     goal: str
     name: Optional[str] = None
