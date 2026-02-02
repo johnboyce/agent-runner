@@ -43,6 +43,7 @@ A **simple agent execution system** that proves the architecture works end-to-en
 
 ## How It Works
 
+**Textual Flow:**
 ```
 User creates run
        ↓
@@ -68,6 +69,98 @@ Status: RUNNING → COMPLETED
 Event: RUN_COMPLETED
        ↓
 Done! ✅
+```
+
+**Detailed Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as Agent Runner API
+    participant DB as SQLite Database
+    participant Worker as Background Worker
+    participant Agent as Simple Agent
+    
+    User->>API: POST /runs {project_id, goal}
+    API->>DB: INSERT run (status=QUEUED)
+    DB-->>API: Run created (id=123)
+    API->>DB: INSERT event (RUN_CREATED)
+    API-->>User: 201 Created {run}
+    
+    Note over Worker: Polling loop starts
+    loop Every 5 seconds
+        Worker->>DB: SELECT runs WHERE status=QUEUED LIMIT 1
+        
+        alt Run found
+            DB-->>Worker: Return run 123
+            Worker->>DB: UPDATE run 123 SET status=RUNNING
+            
+            Worker->>Agent: execute_run(123)
+            
+            Agent->>DB: INSERT event (RUN_STARTED)
+            Agent->>Agent: sleep(1) - simulate thinking
+            Agent->>DB: INSERT event (AGENT_THINKING)
+            
+            Agent->>Agent: sleep(1) - simulate planning
+            Agent->>DB: INSERT event (PLAN_GENERATED)
+            
+            Agent->>Agent: sleep(1) - simulate execution
+            Agent->>DB: INSERT event (EXECUTING)
+            
+            alt Success
+                Agent->>DB: UPDATE run 123 SET status=COMPLETED
+                Agent->>DB: INSERT event (RUN_COMPLETED)
+                Agent-->>Worker: Success
+            else Error occurs
+                Agent->>DB: UPDATE run 123 SET status=FAILED
+                Agent->>DB: INSERT event (RUN_FAILED)
+                Agent-->>Worker: Error
+            end
+        else No runs
+            DB-->>Worker: Empty
+            Note over Worker: Sleep 5 seconds
+        end
+    end
+    
+    User->>API: GET /runs/123
+    API->>DB: SELECT run 123
+    DB-->>API: Run with status=COMPLETED
+    API-->>User: Run details
+    
+    User->>API: GET /runs/123/events
+    API->>DB: SELECT events for run 123
+    DB-->>API: All events
+    API-->>User: Event timeline
+```
+
+**State Machine:**
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED: User creates run
+    QUEUED --> RUNNING: Worker claims & starts execution
+    
+    RUNNING --> COMPLETED: Agent finishes successfully
+    RUNNING --> FAILED: Error occurs
+    
+    COMPLETED --> [*]
+    FAILED --> [*]
+    
+    note right of QUEUED
+        Waiting in queue
+        Worker polls every 5s
+    end note
+    
+    note right of RUNNING
+        Agent executing:
+        1. RUN_STARTED
+        2. AGENT_THINKING
+        3. PLAN_GENERATED
+        4. EXECUTING
+    end note
+    
+    note right of COMPLETED
+        Terminal state
+        All events logged
+    end note
 ```
 
 ## How to Test

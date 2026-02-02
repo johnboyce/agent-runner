@@ -168,6 +168,8 @@
 ## 🔄 Data Flow
 
 ### 1. Create Run Flow (Enhanced Modal)
+
+**Textual Representation:**
 ```
 Browser                Console               Agent Runner         Database
    │                      │                        │                  │
@@ -230,7 +232,45 @@ Browser                Console               Agent Runner         Database
    │                      │                        │                  │
 ```
 
+**Mermaid Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    actor User
+    participant Console as Console UI
+    participant API as Agent Runner API
+    participant DB as SQLite Database
+    participant Worker as Background Worker
+    
+    User->>Console: Click "Create Run"
+    Console->>API: GET /projects
+    API->>DB: SELECT * FROM projects
+    DB-->>API: Return projects
+    API-->>Console: Return projects list
+    Console->>User: Show Create Run Modal
+    
+    User->>Console: Fill form & submit<br/>(project, goal, name, type, options)
+    Console->>API: POST /runs<br/>{project_id, goal, name, run_type, options, metadata}
+    
+    API->>DB: INSERT INTO runs<br/>(status: QUEUED)
+    DB-->>API: Run created (id: 123)
+    
+    API->>DB: INSERT INTO events<br/>(type: RUN_CREATED)
+    DB-->>API: Event logged
+    
+    API-->>Console: Return run {id: 123, status: QUEUED}
+    Console->>User: Show success toast
+    Console->>User: Redirect to /runs/123
+    
+    Note over Worker: Polling every 5 seconds
+    Worker->>DB: SELECT runs WHERE status=QUEUED
+    DB-->>Worker: Return run 123
+    Worker->>DB: UPDATE run 123 SET status=RUNNING
+    Worker->>Worker: Execute agent logic
+```
+
 ### 2. View Run Flow
+
+**Textual Representation:**
 ```
 Browser                Console               Agent Runner         Database
    │                      │                        │                  │
@@ -253,7 +293,49 @@ Browser                Console               Agent Runner         Database
    │    (run + events)    │                        │                  │
 ```
 
+**Mermaid Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    actor User
+    participant Console as Console UI
+    participant API as Agent Runner API
+    participant DB as SQLite Database
+    
+    User->>Console: Navigate to /runs/123
+    
+    Note over Console: useRun hook activates
+    Console->>API: GET /runs/123
+    API->>DB: SELECT * FROM runs WHERE id=123
+    DB-->>API: Return run details
+    API-->>Console: Run object {id, status, goal, ...}
+    
+    Note over Console: useRunEvents hook activates
+    Console->>API: GET /runs/123/events
+    API->>DB: SELECT * FROM events WHERE run_id=123
+    DB-->>API: Return events list
+    API-->>Console: Events array [{type, payload, timestamp}, ...]
+    
+    Console->>User: Render page with run details & events
+    
+    Note over Console: Polling continues every 1.5s
+    loop Every 1.5 seconds (if run not terminal)
+        Console->>API: GET /runs/123
+        API->>DB: SELECT run
+        DB-->>API: Current state
+        API-->>Console: Updated run
+        
+        Console->>API: GET /runs/123/events?after=cursor
+        API->>DB: SELECT new events
+        DB-->>API: New events only
+        API-->>Console: Incremental events
+        
+        Console->>User: Update UI (status, new events)
+    end
+```
+
 ### 3. Control Run Flow (Pause)
+
+**Textual Representation:**
 ```
 Browser                Console               Agent Runner         Database
    │                      │                        │                  │
@@ -276,7 +358,221 @@ Browser                Console               Agent Runner         Database
    │     enable resume)   │                        │                  │
 ```
 
-### 4. Future: Agent Execution Flow (Not Implemented)
+**Mermaid Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    actor User
+    participant Console as Console UI
+    participant API as Agent Runner API
+    participant DB as SQLite Database
+    participant Worker as Background Worker
+    
+    Note over Worker: Currently executing run 123
+    
+    User->>Console: Click "Pause" button
+    Console->>API: POST /runs/123/pause
+    
+    API->>DB: UPDATE runs SET status='PAUSED' WHERE id=123
+    DB-->>API: Run updated
+    
+    API->>DB: INSERT INTO events (type='RUN_PAUSED')
+    DB-->>API: Event logged
+    
+    API-->>Console: Return run {id: 123, status: 'PAUSED'}
+    Console->>User: Update UI<br/>(disable pause, enable resume)
+    
+    Note over Worker: Detects PAUSED status<br/>Stops execution
+    
+    alt User resumes
+        User->>Console: Click "Resume" button
+        Console->>API: POST /runs/123/resume
+        API->>DB: UPDATE runs SET status='RUNNING'
+        API->>DB: INSERT event (RUN_RESUMED)
+        API-->>Console: Return run {status: 'RUNNING'}
+        Note over Worker: Resumes execution
+    else User stops
+        User->>Console: Click "Stop" button
+        Console->>API: POST /runs/123/stop
+        API->>DB: UPDATE runs SET status='STOPPED'
+        API->>DB: INSERT event (RUN_STOPPED)
+        API-->>Console: Return run {status: 'STOPPED'}
+        Note over Worker: Terminates execution
+    end
+```
+
+### 4. Background Worker Execution Flow
+
+**Mermaid Sequence Diagram:**
+```mermaid
+sequenceDiagram
+    participant Worker as Background Worker
+    participant DB as SQLite Database
+    participant Agent as Simple Agent
+    
+    Note over Worker: Thread starts with FastAPI app
+    
+    loop Every 5 seconds
+        Worker->>DB: SELECT * FROM runs<br/>WHERE status='QUEUED'<br/>LIMIT 1
+        
+        alt No queued runs
+            DB-->>Worker: Empty result
+            Note over Worker: Sleep 5 seconds
+        else Found queued run
+            DB-->>Worker: Return run {id: 123}
+            
+            Worker->>DB: UPDATE runs SET status='RUNNING'<br/>WHERE id=123
+            DB-->>Worker: Row updated
+            
+            Worker->>Agent: execute_run(run_id=123)
+            
+            Note over Agent: Execution begins
+            Agent->>DB: INSERT event (RUN_STARTED)
+            Agent->>DB: INSERT event (AGENT_THINKING)
+            Note over Agent: Simulate processing...
+            Agent->>DB: INSERT event (PLAN_GENERATED)
+            Agent->>DB: INSERT event (EXECUTING)
+            
+            alt Success
+                Agent->>DB: UPDATE runs SET status='COMPLETED'
+                Agent->>DB: INSERT event (RUN_COMPLETED)
+                Agent-->>Worker: Success
+            else Error
+                Agent->>DB: UPDATE runs SET status='FAILED'
+                Agent->>DB: INSERT event (RUN_FAILED)
+                Agent-->>Worker: Error
+            end
+            
+            Note over Worker: Continue polling
+        end
+    end
+```
+
+**Atomic Claiming Mechanism:**
+```mermaid
+flowchart TD
+    A[Worker checks for QUEUED runs] --> B{Runs found?}
+    B -->|No| C[Sleep 5 seconds]
+    C --> A
+    B -->|Yes| D[Get first QUEUED run]
+    D --> E[UPDATE status to RUNNING]
+    E --> F{Update successful?}
+    F -->|Yes| G[Execute agent logic]
+    F -->|No| H[Another worker claimed it]
+    H --> C
+    G --> I{Execution complete?}
+    I -->|Success| J[Set status to COMPLETED]
+    I -->|Error| K[Set status to FAILED]
+    I -->|Paused| L[Keep status PAUSED]
+    I -->|Stopped| M[Keep status STOPPED]
+    J --> C
+    K --> C
+    L --> C
+    M --> C
+    
+    style G fill:#90EE90
+    style J fill:#98FB98
+    style K fill:#FFB6C1
+    style L fill:#FFE4B5
+    style M fill:#D3D3D3
+```
+```
+Browser                Console               Agent Runner         Database      Ollama    Git Repo
+   │                      │                        │                  │            │           │
+   │                      │                        │                  │            │           │
+   │                      │      ┌─────────────────┤                  │            │           │
+   │                      │      │ Background Task │                  │            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │ While status    │                  │            │           │
+   │                      │      │ == RUNNING:     │                  │            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  1. Get goal ───┼─── SELECT run ──▶│            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  2. Generate    │                  │            │           │
+   │                      │      │     prompt ─────┼──────────────────┼─── POST ──▶│           │
+   │                      │      │                 │                  │   /generate│           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  3. Get plan ◀──┼──────────────────┼─────────── │           │
+   │                      │      │                 │                  │  {response}│           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  4. Log event ──┼─── INSERT event ▶│            │           │
+   │                      │      │                 │   (PLAN_GENERATED)            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  5. Execute ────┼──────────────────┼────────────┼─ read ───▶│
+   │                      │      │     steps       │                  │            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  6. Write ──────┼──────────────────┼────────────┼─ write ──▶│
+   │                      │      │     files       │                  │            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  7. Log events ─┼─── INSERT events ▶            │           │
+   │                      │      │                 │                  │            │           │
+   │                      │      │  8. Complete ───┼─── UPDATE run ──▶│            │           │
+   │                      │      │                 │   status=COMPLETE            │           │
+   │                      │      └─────────────────┤                  │            │           │
+   │                      │                        │                  │            │           │
+   │─── Refresh page ────▶│─── GET /runs/123 ─────▶│─── SELECT ──────▶│            │           │
+   │                      │                        │                  │            │           │
+   │◀── See updated ──────│◀── Return run ─────────│                  │            │           │
+   │    status            │    {status: "COMPLETE"}│                  │            │           │
+```
+
+### 5. Future: Full Agent Intelligence Flow (Not Yet Implemented)
+
+**Planned Architecture:**
+```mermaid
+sequenceDiagram
+    participant Worker as Background Worker
+    participant Agent as Intelligent Agent
+    participant DB as Database
+    participant LLM as Ollama LLM
+    participant FS as File System
+    participant Git as Git Repository
+    
+    Worker->>Agent: execute_run(run_id)
+    Agent->>DB: Get run details (goal, project)
+    DB-->>Agent: Run info
+    
+    loop Until goal achieved or stopped
+        Agent->>DB: Get project files list
+        DB-->>Agent: Files metadata
+        
+        Agent->>FS: Read relevant files
+        FS-->>Agent: File contents
+        
+        Agent->>LLM: Generate prompt<br/>{goal, context, files}
+        LLM-->>Agent: Plan with steps
+        
+        Agent->>DB: Log event (PLAN_GENERATED)
+        
+        loop For each step in plan
+            Agent->>LLM: Get code changes
+            LLM-->>Agent: Proposed changes
+            
+            Agent->>FS: Write/modify files
+            FS-->>Agent: Files updated
+            
+            Agent->>Git: Create commit
+            Git-->>Agent: Commit created
+            
+            Agent->>DB: Log event (STEP_COMPLETED)
+        end
+        
+        Agent->>LLM: Verify goal achieved?
+        LLM-->>Agent: Assessment
+        
+        alt Goal achieved
+            Agent->>DB: UPDATE status='COMPLETED'
+            Agent->>DB: Log event (RUN_COMPLETED)
+        else Need more iterations
+            Agent->>DB: INCREMENT current_iteration
+            Note over Agent: Continue loop
+        else Error occurred
+            Agent->>DB: UPDATE status='FAILED'
+            Agent->>DB: Log event (RUN_FAILED)
+        end
+    end
+```
+
+**Original Textual Representation:**
 ```
 Browser                Console               Agent Runner         Database      Ollama    Git Repo
    │                      │                        │                  │            │           │
@@ -338,6 +634,8 @@ Browser                Console               Agent Runner         Database      
 - **Validation**: FastAPI built-in
 
 ### Database Schema
+
+**SQL Schema:**
 ```sql
 CREATE TABLE projects (
     id INTEGER PRIMARY KEY,
@@ -368,6 +666,61 @@ CREATE TABLE events (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+**Entity Relationship Diagram:**
+```mermaid
+erDiagram
+    PROJECTS ||--o{ RUNS : "has many"
+    RUNS ||--o{ EVENTS : "generates"
+    
+    PROJECTS {
+        int id PK
+        string name UK "Unique project identifier"
+        string local_path "Filesystem path"
+        datetime created_at
+    }
+    
+    RUNS {
+        int id PK
+        int project_id FK
+        string name "Optional friendly name"
+        string goal "What the agent should do"
+        string run_type "agent/workflow/pipeline/task"
+        string status "QUEUED/RUNNING/PAUSED/STOPPED/COMPLETED/FAILED"
+        int current_iteration "Progress counter"
+        json options "Configuration options"
+        json run_metadata "Custom metadata"
+        datetime created_at
+    }
+    
+    EVENTS {
+        int id PK
+        int run_id FK
+        string type "Event type (RUN_CREATED, AGENT_THINKING, etc.)"
+        json payload "Event details"
+        datetime created_at "Event timestamp"
+    }
+```
+
+**Run Status Values:**
+- `QUEUED` - Waiting to be picked up by worker
+- `RUNNING` - Currently executing
+- `PAUSED` - Temporarily suspended by user
+- `STOPPED` - Terminated by user
+- `COMPLETED` - Successfully finished
+- `FAILED` - Error occurred
+
+**Common Event Types:**
+- `RUN_CREATED` - Run was created
+- `RUN_STARTED` - Execution began
+- `AGENT_THINKING` - Agent is analyzing
+- `PLAN_GENERATED` - Plan created
+- `EXECUTING` - Executing steps
+- `RUN_PAUSED` - Execution paused
+- `RUN_RESUMED` - Execution resumed
+- `RUN_STOPPED` - Execution stopped
+- `RUN_COMPLETED` - Successfully completed
+- `RUN_FAILED` - Failed with error
 
 ---
 

@@ -106,6 +106,7 @@ curl -X POST "http://localhost:8000/runs" \
 |------|---------|--------------|
 | **[README.md](docs/README.md)** | Documentation index and overview | Start here |
 | **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System architecture, diagrams, data flows | Understanding the system |
+| **[API_REFERENCE.md](docs/API_REFERENCE.md)** | Complete REST API documentation with examples | Working with the API |
 | **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** | Commands, ports, API reference | Daily development |
 | **[CREATE_RUN_MODAL_IMPLEMENTATION.md](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md)** | Create Run feature documentation | Understanding new features |
 | **[TESTING.md](docs/TESTING.md)** | Testing guide and coverage | Running tests |
@@ -126,6 +127,56 @@ Historical analysis and development notes (timestamped):
 
 ## 🎓 **Learning Path**
 
+### Documentation Navigation Map
+
+```mermaid
+flowchart TD
+    START([New to Agent Runner?]) --> README[README.md<br/>Project Overview]
+    
+    README --> ROLE{What's your goal?}
+    
+    ROLE -->|Understand System| ARCH[ARCHITECTURE.md<br/>System Design & Diagrams]
+    ROLE -->|Quick Start| QS[Quick Start Section<br/>in DOCS_INDEX.md]
+    ROLE -->|Daily Development| QUICK[QUICK_REFERENCE.md<br/>Commands & API]
+    ROLE -->|See It Work| DEMO[AGENT_QUICKSTART.md<br/>One-Command Demo]
+    
+    QS --> INSTALL[make install]
+    INSTALL --> START_SERV[make start]
+    START_SERV --> BROWSER[Open localhost:3001]
+    BROWSER --> CREATE[Create a Run]
+    CREATE --> OBSERVE[Observe Execution]
+    
+    ARCH --> UNDERSTAND{Need More Detail?}
+    UNDERSTAND -->|Data Flow| SEQ[Sequence Diagrams]
+    UNDERSTAND -->|Database| ERD[ER Diagram]
+    UNDERSTAND -->|Components| COMP[Component Details]
+    
+    DEMO --> TRY[Try Creating Runs]
+    TRY --> DEEP{Want Deeper Understanding?}
+    
+    DEEP -->|Testing| TEST[TESTING.md<br/>Test Structure]
+    DEEP -->|Contributing| CONTRIB[CONTRIBUTING.md<br/>Development Guide]
+    DEEP -->|Features| FEATURES[Feature Docs]
+    
+    QUICK --> DAILY[Daily Development Work]
+    TEST --> DAILY
+    CONTRIB --> DAILY
+    
+    FEATURES --> MODAL[CREATE_RUN_MODAL.md]
+    FEATURES --> EXEC[AGENT_EXECUTION.md]
+    
+    DAILY --> NEED{Need Historical Context?}
+    NEED -->|Yes| ANALYSIS[docs/_analysis/<br/>Session Notes]
+    NEED -->|No| WORK[Continue Development]
+    
+    style START fill:#FFD700
+    style README fill:#87CEEB
+    style ARCH fill:#90EE90
+    style QUICK fill:#DDA0DD
+    style DAILY fill:#98FB98
+    style WORK fill:#32CD32
+```
+
 ### For New Team Members
 1. Read root [`README.md`](README.md)
 2. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
@@ -144,7 +195,8 @@ Historical analysis and development notes (timestamped):
 | Need | File | Section |
 |------|------|---------|
 | Start services | [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) | "Start Everything" |
-| API endpoints | [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) | "API Endpoints" |
+| API endpoints | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | "Endpoints" |
+| API examples | [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) | "Examples" |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | All sections |
 | System design | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Diagrams |
 | Data flow | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | "Data Flow" |
@@ -224,9 +276,10 @@ open http://localhost:3000
 ## 📌 **Bookmark These**
 
 Most useful for daily work:
-1. [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - Commands and API
-2. [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) - Latest features
-3. Root [`README.md`](README.md) - Project philosophy
+1. [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - Commands and shortcuts
+2. [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) - Complete API documentation
+3. [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) - Latest features
+4. Root [`README.md`](README.md) - Project philosophy
 
 Most useful for understanding:
 1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Technical design

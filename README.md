@@ -47,18 +47,116 @@ This repo contains the **Console UI** that talks to an Agent Runner API.
 ## Architecture (High Level)
 
 ```mermaid
-flowchart LR
-  U[User] -->|Browser| UI[Agent Runner Console]
-  UI -->|REST| API[Agent Runner API]
-  API --> W[Agent Worker]
-  W --> E[(Event Store)]
-  API --> E
+graph TB
+    subgraph "Browser"
+        U[User/Operator]
+    end
+    
+    subgraph "Frontend - Port 3001"
+        UI[Agent Runner Console<br/>Next.js + React]
+        UI_DASH[Dashboard<br/>Runs List]
+        UI_DETAIL[Run Detail<br/>Events Timeline]
+        UI_CREATE[Create Run<br/>Modal]
+        
+        UI --> UI_DASH
+        UI --> UI_DETAIL
+        UI --> UI_CREATE
+    end
+    
+    subgraph "Backend - Port 8000"
+        API[Agent Runner API<br/>FastAPI]
+        WORKER[Background Worker<br/>Thread]
+        AGENT[Simple Agent<br/>Execution Logic]
+        
+        API -.-> WORKER
+        WORKER --> AGENT
+    end
+    
+    subgraph "Storage"
+        DB[(SQLite DB<br/>platform.db)]
+        DB_P[Projects Table]
+        DB_R[Runs Table]
+        DB_E[Events Table]
+        
+        DB --> DB_P
+        DB --> DB_R
+        DB --> DB_E
+    end
+    
+    subgraph "Optional Services"
+        FORGE[Forgejo<br/>Git Server<br/>Port 3000]
+        TAIGA[Taiga<br/>Project Management<br/>Port 9000]
+        LLM[Ollama<br/>LLM Server<br/>Port 11434]
+    end
+    
+    U -->|HTTPS| UI
+    UI -->|REST API| API
+    API -->|SQL| DB
+    WORKER -->|SQL| DB
+    AGENT -->|SQL| DB
+    
+    API -.-|Future| FORGE
+    API -.-|Future| TAIGA
+    AGENT -.-|Future| LLM
+    
+    style UI fill:#4A90E2
+    style API fill:#50C878
+    style DB fill:#FFD700
+    style WORKER fill:#E67E22
+    style FORGE fill:#ddd
+    style TAIGA fill:#ddd
+    style LLM fill:#ddd
 ```
 
 **Key concepts**
-- **Run**: a unit of agent execution
-- **Event**: immutable execution timeline entries
-- **Console**: human-facing control plane
+- **Run**: a unit of agent execution with lifecycle states
+- **Event**: immutable execution timeline entries (audit trail)
+- **Console**: human-facing control plane for observability
+- **Worker**: background processor that claims and executes queued runs
+- **Agent**: execution logic that orchestrates run workflows
+
+---
+
+## Run Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> QUEUED: Run Created
+    QUEUED --> RUNNING: Worker Claims
+    RUNNING --> PAUSED: User Pauses
+    PAUSED --> RUNNING: User Resumes
+    RUNNING --> STOPPED: User Stops
+    RUNNING --> COMPLETED: Success
+    RUNNING --> FAILED: Error
+    STOPPED --> [*]
+    COMPLETED --> [*]
+    FAILED --> [*]
+    
+    note right of QUEUED
+        Waiting for worker
+        to pick up
+    end note
+    
+    note right of RUNNING
+        Active execution
+        Events streaming
+    end note
+    
+    note right of PAUSED
+        Execution suspended
+        Can be resumed
+    end note
+    
+    note right of COMPLETED
+        Terminal state
+        Success
+    end note
+    
+    note right of FAILED
+        Terminal state
+        Error occurred
+    end note
+```
 
 ---
 

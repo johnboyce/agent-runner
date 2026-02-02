@@ -4,6 +4,50 @@
 
 The system includes comprehensive tests for both the Python backend (`pytest`) and the TypeScript frontend (`Jest`).
 
+```mermaid
+flowchart TB
+    subgraph "Test Types"
+        UT[Unit Tests]
+        IT[Integration Tests]
+        E2E[End-to-End Tests]
+        MANUAL[Manual Tests]
+    end
+    
+    subgraph "Backend Testing"
+        PY_UNIT[pytest: Unit Tests<br/>test_agent.py<br/>test_routes.py<br/>test_worker.py]
+        PY_COV[Coverage Reports<br/>pytest-cov]
+        PY_INT[Integration Tests<br/>Database + API]
+    end
+    
+    subgraph "Frontend Testing"
+        JS_UNIT[Jest: Unit Tests<br/>useRun.test.ts<br/>useRunEvents.test.ts]
+        JS_COV[Coverage Reports<br/>jest --coverage]
+        JS_COMP[Component Tests<br/>React Testing Library]
+    end
+    
+    subgraph "System Testing"
+        E2E_AGENT[Agent Execution Test<br/>test-agent-execution.sh]
+        E2E_CORS[CORS Verification<br/>test-cors.sh]
+        E2E_API[API Integration<br/>test-create-run-api.sh]
+    end
+    
+    UT --> PY_UNIT
+    UT --> JS_UNIT
+    IT --> PY_INT
+    IT --> E2E_API
+    E2E --> E2E_AGENT
+    E2E --> E2E_CORS
+    MANUAL --> E2E_API
+    
+    PY_UNIT --> PY_COV
+    JS_UNIT --> JS_COV
+    
+    style UT fill:#90EE90
+    style IT fill:#87CEEB
+    style E2E fill:#DDA0DD
+    style MANUAL fill:#FFD700
+```
+
 ## Running Tests
 
 ### Makefile Targets (Unified)
