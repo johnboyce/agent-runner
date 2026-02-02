@@ -17,15 +17,15 @@ export function ActivityTicker({ lastEventId, lastEventTime }: ActivityTickerPro
   // Get global fetching and mutation state from React Query
   const isFetchingCount = useIsFetching();
   const isMutatingCount = useIsMutating();
+  
+  // Check what's being fetched (hooks must be called at top level)
+  const fetchingRuns = useIsFetching({ queryKey: ['runs'] });
+  const fetchingRun = useIsFetching({ queryKey: ['run'] });
+  const fetchingEvents = useIsFetching({ queryKey: ['events'] });
 
   // Derive activity state
   const activityState = useMemo(() => {
     const parts: string[] = [];
-
-    // Check what's being fetched
-    const fetchingRuns = useIsFetching({ queryKey: ['runs'] });
-    const fetchingRun = useIsFetching({ queryKey: ['run'] });
-    const fetchingEvents = useIsFetching({ queryKey: ['events'] });
 
     if (fetchingRuns > 0) {
       parts.push('Fetching runs');
@@ -64,7 +64,7 @@ export function ActivityTicker({ lastEventId, lastEventTime }: ActivityTickerPro
     }
 
     return 'Idle · All data up to date';
-  }, [isFetchingCount, isMutatingCount, lastEventId, lastEventTime]);
+  }, [isMutatingCount, lastEventId, lastEventTime, fetchingRuns, fetchingRun, fetchingEvents]);
 
   // Determine if we're actively fetching
   const isActive = isFetchingCount > 0 || isMutatingCount > 0;

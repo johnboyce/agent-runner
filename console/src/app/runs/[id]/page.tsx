@@ -234,14 +234,14 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
         {/* Error Banners */}
         {runError && (
           <ErrorBanner
-            error={runError instanceof Error ? runError.message : 'Failed to load run'}
+            error={runError instanceof Error ? runError : new Error('Failed to load run')}
             onRetry={refreshRun}
             onDismiss={() => {}}
           />
         )}
         {eventsError && (
           <ErrorBanner
-            error={eventsError instanceof Error ? eventsError.message : 'Failed to load events'}
+            error={eventsError instanceof Error ? eventsError : new Error('Failed to load events')}
             onRetry={refreshEvents}
             onDismiss={() => {}}
           />
