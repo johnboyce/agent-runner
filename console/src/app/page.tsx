@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus, CheckCircle } from 'lucide-react';
+import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus, CheckCircle, FolderGit2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useAdaptivePolling, usePolling } from '@/hooks/usePolling';
 import { TIMEOUTS } from '@/lib/timeouts';
@@ -169,8 +169,17 @@ export default function Home() {
               <p className="text-sm text-gray-500 mt-1">Monitor and control your AI agent runs</p>
             </div>
 
-            {/* Status Indicators */}
+            {/* Navigation and Status Indicators */}
             <div className="flex items-center gap-3">
+              {/* Projects Link */}
+              <Link
+                href="/projects"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium text-sm"
+              >
+                <FolderGit2 className="w-4 h-4" />
+                Projects
+              </Link>
+
               {/* Worker Status Badge */}
               {workerStatus && (
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
