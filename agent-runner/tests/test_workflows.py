@@ -215,3 +215,188 @@ class TestQuarkusBootstrapWorkflow:
         assert "GraphQL" in coder_prompt
         assert "OpenTelemetry" in coder_prompt
         assert "pom.xml" in coder_prompt
+
+
+class TestModelOverrides:
+    """Tests for model override functionality"""
+    
+    def test_apply_model_overrides_from_options(self):
+        """Test that model overrides from options are applied correctly"""
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        model_overrides = {
+            "planner": "llama2:latest",
+            "coder": "codellama:latest"
+        }
+        
+        modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, model_overrides)
+        
+        # Check that models were overridden
+        assert modified_workflow.steps[0].model == "llama2:latest"
+        assert modified_workflow.steps[1].model == "codellama:latest"
+        
+        # Check that descriptions were updated
+        assert "llama2" in modified_workflow.steps[0].description.lower()
+        
+    def test_apply_model_overrides_from_env(self):
+        """Test that model overrides from environment variables are applied"""
+        import os
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        # Set environment variables
+        os.environ["OLLAMA_PLANNER_MODEL"] = "mistral:latest"
+        os.environ["OLLAMA_CODER_MODEL"] = "deepseek-coder:latest"
+        
+        try:
+            modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, {})
+            
+            # Check that env var models were applied
+            assert modified_workflow.steps[0].model == "mistral:latest"
+            assert modified_workflow.steps[1].model == "deepseek-coder:latest"
+        finally:
+            # Clean up environment variables
+            os.environ.pop("OLLAMA_PLANNER_MODEL", None)
+            os.environ.pop("OLLAMA_CODER_MODEL", None)
+    
+    def test_apply_model_overrides_priority(self):
+        """Test that options take priority over environment variables"""
+        import os
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        # Set environment variable
+        os.environ["OLLAMA_PLANNER_MODEL"] = "mistral:latest"
+        
+        try:
+            # Override with options
+            model_overrides = {
+                "planner": "llama2:latest"
+            }
+            
+            modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, model_overrides)
+            
+            # Options should take priority
+            assert modified_workflow.steps[0].model == "llama2:latest"
+        finally:
+            os.environ.pop("OLLAMA_PLANNER_MODEL", None)
+    
+    def test_apply_model_overrides_defaults(self):
+        """Test that defaults are used when no overrides are provided"""
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, {})
+        
+        # Should keep original defaults
+        assert modified_workflow.steps[0].model == "gemma3:27b"
+        assert modified_workflow.steps[1].model == "qwen3-coder:latest"
+    
+    def test_apply_model_overrides_partial(self):
+        """Test that partial overrides work correctly"""
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        # Only override planner
+        model_overrides = {
+            "planner": "llama2:latest"
+        }
+        
+        modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, model_overrides)
+        
+        # Planner should be overridden
+        assert modified_workflow.steps[0].model == "llama2:latest"
+        # Coder should keep default
+        assert modified_workflow.steps[1].model == "qwen3-coder:latest"
+    
+    def test_apply_model_overrides_non_llm_steps(self):
+        """Test that non-LLM steps are not affected by overrides"""
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        model_overrides = {
+            "maven_test": "some-model:latest"  # Should be ignored
+        }
+        
+        modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, model_overrides)
+        
+        # Maven step should remain unchanged (no model attribute for non-LLM steps)
+        maven_step = modified_workflow.steps[2]
+        assert maven_step.step_type.value == "maven_command"
+        assert maven_step.command == "test"
+
+
+class TestWorkflowEngineTimeout:
+    """Tests for timeout configuration in WorkflowEngine"""
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_with_custom_timeout(self, mock_get_provider):
+        """Test that engine respects custom timeout"""
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_provider.generate.return_value = "Test output"
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine with custom timeout
+            engine = WorkflowEngine(temp_dir, timeout=600)
+            
+            assert engine.timeout == 600
+            
+            # Execute an LLM step
+            from app.workflows import WorkflowStep, WorkflowStepType
+            step = WorkflowStep(
+                name="test",
+                step_type=WorkflowStepType.LLM_GENERATE,
+                description="Test",
+                model="test-model",
+                prompt="Test prompt"
+            )
+            
+            engine._execute_step(step)
+            
+            # Verify timeout was passed to generate
+            mock_provider.generate.assert_called_once()
+            call_kwargs = mock_provider.generate.call_args[1]
+            assert call_kwargs['timeout'] == 600
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_with_env_timeout(self, mock_get_provider):
+        """Test that engine respects OLLAMA_TIMEOUT_SECONDS env var"""
+        import os
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        os.environ["OLLAMA_TIMEOUT_SECONDS"] = "900"
+        
+        try:
+            mock_provider = Mock()
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine without explicit timeout
+            engine = WorkflowEngine(temp_dir)
+            
+            assert engine.timeout == 900
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            os.environ.pop("OLLAMA_TIMEOUT_SECONDS", None)
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_with_default_timeout(self, mock_get_provider):
+        """Test that engine uses default timeout when none specified"""
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine without timeout
+            engine = WorkflowEngine(temp_dir)
+            
+            # Should default to 300
+            assert engine.timeout == 300
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)

@@ -148,12 +148,16 @@ class TestSimpleAgent:
         with patch('app.agent.SessionLocal', return_value=mock_db):
             with patch('app.agent.WorkflowEngine', return_value=mock_engine):
                 with patch('app.agent.get_workflow') as mock_get_workflow:
-                    mock_workflow = Mock()
-                    mock_workflow.name = "quarkus-bootstrap-v1"
-                    mock_workflow.version = "1.0.0"
-                    mock_get_workflow.return_value = mock_workflow
-                    
-                    result = agent.execute_run(1)
+                    with patch('app.agent.apply_model_overrides') as mock_apply_overrides:
+                        mock_workflow = Mock()
+                        mock_workflow.name = "quarkus-bootstrap-v1"
+                        mock_workflow.version = "1.0.0"
+                        mock_get_workflow.return_value = mock_workflow
+                        
+                        # apply_model_overrides should return the same mock workflow
+                        mock_apply_overrides.return_value = mock_workflow
+                        
+                        result = agent.execute_run(1)
 
         # Should succeed
         assert result is True

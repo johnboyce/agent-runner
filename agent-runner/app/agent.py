@@ -11,7 +11,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from .models import Run, Event, Project
 from .database import SessionLocal
-from .workflows import WorkflowEngine, get_workflow
+from .workflows import WorkflowEngine, get_workflow, apply_model_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class SimpleAgent:
         """Execute a workflow-based run"""
         
         try:
-            # Parse options to get workflow name
+            # Parse options to get workflow name and model overrides
             options = {}
             if run.options:
                 try:
@@ -108,7 +108,7 @@ class SimpleAgent:
                 except json.JSONDecodeError:
                     logger.warning(f"Failed to parse options for run {run.id}")
             
-            workflow_name = options.get("workflow_name")
+            workflow_name = options.get("workflow") or options.get("workflow_name")
             if not workflow_name:
                 # Default to quarkus-bootstrap-v1 if not specified
                 workflow_name = "quarkus-bootstrap-v1"
@@ -124,6 +124,18 @@ class SimpleAgent:
                 db.commit()
                 return False
             
+            # Apply model overrides from options and environment variables
+            model_overrides = options.get("models", {})
+            if model_overrides:
+                logger.info(f"Applying model overrides: {model_overrides}")
+                workflow = apply_model_overrides(workflow, model_overrides)
+            else:
+                # Still apply env var overrides even if no options provided
+                workflow = apply_model_overrides(workflow, {})
+            
+            # Get timeout from options or use default
+            timeout_seconds = options.get("timeout_seconds")
+            
             # Get project to determine workspace path
             project = db.query(Project).filter(Project.id == run.project_id).first()
             if not project:
@@ -137,8 +149,11 @@ class SimpleAgent:
                           f"Starting workflow: {workflow.name} v{workflow.version}")
             db.commit()
             
-            # Create workflow engine with project workspace
-            engine = WorkflowEngine(workspace_path=project.local_path)
+            # Create workflow engine with project workspace and optional timeout
+            engine = WorkflowEngine(
+                workspace_path=project.local_path,
+                timeout=timeout_seconds
+            )
             
             # Create event callback that logs to database
             def event_callback(event_type: str, message: str, artifact_path: Optional[str]):

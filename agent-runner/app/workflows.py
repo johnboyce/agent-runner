@@ -7,6 +7,7 @@ Each workflow is a sequence of steps with specific tools and models.
 import os
 import logging
 import subprocess
+import re
 from typing import Dict, List, Optional, Callable, Any
 from pathlib import Path
 from dataclasses import dataclass
@@ -54,17 +55,19 @@ class WorkflowEngine:
     Executes workflow steps in sequence and emits events for progress tracking.
     """
     
-    def __init__(self, workspace_path: str):
+    def __init__(self, workspace_path: str, timeout: Optional[int] = None):
         """
         Initialize workflow engine.
         
         Args:
             workspace_path: Base path where all file operations happen
+            timeout: Optional timeout in seconds for LLM operations
         """
         self.workspace_path = Path(workspace_path)
         self.workspace_path.mkdir(parents=True, exist_ok=True)
         self.ollama = get_ollama_provider()
-        logger.info(f"WorkflowEngine initialized with workspace: {self.workspace_path}")
+        self.timeout = timeout or int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "300"))
+        logger.info(f"WorkflowEngine initialized with workspace: {self.workspace_path}, timeout: {self.timeout}s")
     
     def execute_workflow(
         self,
@@ -170,7 +173,8 @@ class WorkflowEngine:
         generated_content = self.ollama.generate(
             prompt=step.prompt,
             model=step.model,
-            event_callback=ollama_event_wrapper
+            event_callback=ollama_event_wrapper,
+            timeout=self.timeout
         )
         
         result = {
@@ -346,3 +350,90 @@ def get_workflow(name: str) -> Optional[Workflow]:
 def list_workflows() -> List[str]:
     """List all available workflow names"""
     return list(WORKFLOW_REGISTRY.keys())
+
+
+def apply_model_overrides(
+    workflow: Workflow,
+    model_overrides: Optional[Dict[str, str]] = None
+) -> Workflow:
+    """
+    Apply model overrides to a workflow based on options and environment variables.
+    
+    Priority order:
+    1. model_overrides dict (from run options)
+    2. Environment variables (OLLAMA_PLANNER_MODEL, OLLAMA_CODER_MODEL)
+    3. Original workflow defaults
+    
+    Args:
+        workflow: The original workflow to modify
+        model_overrides: Optional dict with keys like "planner", "coder" mapping to model names
+    
+    Returns:
+        A new Workflow instance with updated models and descriptions
+    """
+    if model_overrides is None:
+        model_overrides = {}
+    
+    # Get environment variable defaults
+    env_models = {
+        "planner": os.getenv("OLLAMA_PLANNER_MODEL"),
+        "coder": os.getenv("OLLAMA_CODER_MODEL")
+    }
+    
+    # Create new steps with overridden models
+    new_steps = []
+    for step in workflow.steps:
+        if step.step_type != WorkflowStepType.LLM_GENERATE:
+            # Non-LLM steps pass through unchanged
+            new_steps.append(step)
+            continue
+        
+        # Determine the model to use based on priority
+        original_model = step.model
+        new_model = original_model
+        
+        # Check if this step has an override based on its name
+        step_name = step.name.lower()
+        if step_name in model_overrides and model_overrides[step_name]:
+            new_model = model_overrides[step_name]
+            logger.info(f"Overriding {step.name} model from options: {original_model} -> {new_model}")
+        elif step_name in env_models and env_models[step_name]:
+            new_model = env_models[step_name]
+            logger.info(f"Overriding {step.name} model from env: {original_model} -> {new_model}")
+        
+        # Update description to reflect the actual model if it changed
+        new_description = step.description
+        if new_model != original_model:
+            # Try to update model reference in description
+            # Match patterns like "using Gemma3" or "using Qwen3-Coder"
+            # Use [\w-]+ to match word characters and hyphens
+            new_description = re.sub(
+                r'using [\w-]+',
+                f'using {new_model.split(":")[0]}',
+                step.description,
+                flags=re.IGNORECASE
+            )
+            if new_description == step.description:
+                # If no pattern matched, append the model info
+                new_description = f"{step.description} (model: {new_model})"
+        
+        # Create new step with updated model and description
+        new_step = WorkflowStep(
+            name=step.name,
+            step_type=step.step_type,
+            description=new_description,
+            model=new_model,
+            prompt=step.prompt,
+            output_file=step.output_file,
+            command=step.command,
+            save_artifact=step.save_artifact
+        )
+        new_steps.append(new_step)
+    
+    # Return new workflow with updated steps
+    return Workflow(
+        name=workflow.name,
+        version=workflow.version,
+        description=workflow.description,
+        steps=new_steps
+    )
