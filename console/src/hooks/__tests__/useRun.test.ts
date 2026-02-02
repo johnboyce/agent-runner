@@ -277,4 +277,50 @@ describe('useRun', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error));
     });
   });
+
+  it('REGRESSION: should fetch run data even if document.hidden is true on mount', async () => {
+    const mockRun = {
+      id: 1,
+      project_id: 1,
+      goal: 'Test goal',
+      status: 'RUNNING',
+      current_iteration: 0,
+      created_at: '2026-02-01T00:00:00Z',
+    };
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockRun,
+    });
+
+    // Simulate the page being hidden during navigation
+    Object.defineProperty(document, 'hidden', {
+      writable: true,
+      configurable: true,
+      value: true,
+    });
+
+    const { result } = renderHook(() => useRun(1));
+
+    // Initially loading
+    expect(result.current.loading).toBe(true);
+
+    // Wait for data to load - should still load even if hidden
+    await waitFor(() => {
+      if (result.current.loading) {
+        throw new Error('Still loading');
+      }
+    });
+
+    expect(result.current.data).toEqual(mockRun);
+    expect(result.current.error).toBeNull();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    // Reset document.hidden to false
+    Object.defineProperty(document, 'hidden', {
+      writable: true,
+      configurable: true,
+      value: false,
+    });
+  });
 });

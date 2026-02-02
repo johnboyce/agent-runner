@@ -44,6 +44,7 @@ export function useRunEvents(runId: number | null, options: UseRunEventsOptions 
   const initialFetchDoneRef = useRef<boolean>(false); // Track if we've fetched at least once
   const inFlightRef = useRef<boolean>(false);
   const prevStatusRef = useRef<string | undefined>(undefined);
+  const isInitialFetchRef = useRef<boolean>(true); // Track if this is the initial fetch
 
   const enabledRef = useRef(enabled);
   const runIdRef = useRef(runId);
@@ -154,7 +155,8 @@ export function useRunEvents(runId: number | null, options: UseRunEventsOptions 
   // Main polling logic
   const poll = useCallback(async () => {
     // Don't poll if disabled, no runId, tab hidden, unmounted
-    if (!shouldRun()) {
+    // Exception: Always allow the initial fetch to proceed regardless of visibility
+    if (!isInitialFetchRef.current && !shouldRun()) {
       return;
     }
 
@@ -176,6 +178,9 @@ export function useRunEvents(runId: number | null, options: UseRunEventsOptions 
       const newEvents = await fetchEvents(abortControllerRef.current.signal, cursorRef.current);
 
       if (!isMountedRef.current) return;
+
+      // Mark initial fetch as complete
+      isInitialFetchRef.current = false;
 
       // Success: reset error count
       errorCountRef.current = 0;
@@ -274,7 +279,7 @@ export function useRunEvents(runId: number | null, options: UseRunEventsOptions 
   useEffect(() => {
     isVisibleRef.current = !document.hidden;
 
-    if (enabled && runId != null && isVisibleRef.current) {
+    if (enabled && runId != null) {
       setLoading(true);
       setError(null);
       errorCountRef.current = 0;
@@ -283,7 +288,10 @@ export function useRunEvents(runId: number | null, options: UseRunEventsOptions 
       eventsRef.current = [];
       initialFetchDoneRef.current = false; // Reset on runId change
       forceFinalFetchRef.current = false;
+      isInitialFetchRef.current = true; // Reset for new runId
       setEvents([]);
+      // Always poll on initial mount, regardless of visibility
+      // Visibility checks will apply to subsequent polls
       poll();
     } else {
       setLoading(false);

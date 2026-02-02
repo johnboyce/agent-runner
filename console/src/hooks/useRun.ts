@@ -42,6 +42,7 @@ export function useRun(runId: number | null, options: UseRunOptions = {}) {
   const isMountedRef = useRef<boolean>(false);
   const dataRef = useRef<Run | null>(null);
   const inFlightRef = useRef<boolean>(false);
+  const isInitialFetchRef = useRef<boolean>(true); // Track if this is the initial fetch
 
   const enabledRef = useRef(enabled);
   const runIdRef = useRef(runId);
@@ -121,7 +122,8 @@ export function useRun(runId: number | null, options: UseRunOptions = {}) {
   // Main polling logic
   const poll = useCallback(async () => {
     // Don't poll if disabled, no runId, tab hidden, or unmounted
-    if (!shouldRun()) {
+    // Exception: Always allow the initial fetch to proceed regardless of visibility
+    if (!isInitialFetchRef.current && !shouldRun()) {
       return;
     }
 
@@ -138,6 +140,9 @@ export function useRun(runId: number | null, options: UseRunOptions = {}) {
       const run = await fetchRun(abortControllerRef.current.signal);
 
       if (!isMountedRef.current) return;
+
+      // Mark initial fetch as complete
+      isInitialFetchRef.current = false;
 
       // Success: reset error count
       errorCountRef.current = 0;
@@ -222,7 +227,7 @@ export function useRun(runId: number | null, options: UseRunOptions = {}) {
     clearTimer();
     abortInFlight();
 
-    if (!enabled || runId == null || !isVisibleRef.current) {
+    if (!enabled || runId == null) {
       setLoading(false);
       return;
     }
@@ -230,6 +235,9 @@ export function useRun(runId: number | null, options: UseRunOptions = {}) {
     setLoading(true);
     setError(null);
     errorCountRef.current = 0;
+    isInitialFetchRef.current = true; // Reset for new runId
+    // Always poll on initial mount, regardless of visibility
+    // Visibility checks will apply to subsequent polls
     poll();
 
     // Cleanup on runId change or unmount
