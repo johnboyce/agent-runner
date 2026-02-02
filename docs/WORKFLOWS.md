@@ -79,11 +79,69 @@ Workflows emit these event types:
 # Ollama API base URL (default: http://localhost:11434)
 OLLAMA_BASE_URL=http://localhost:11434
 
+# Default model for planner steps (optional, can be overridden per run)
+OLLAMA_PLANNER_MODEL=gemma3:27b
+
+# Default model for coder steps (optional, can be overridden per run)
+OLLAMA_CODER_MODEL=qwen3-coder:latest
+
+# Timeout for LLM operations in seconds (default: 300)
+OLLAMA_TIMEOUT_SECONDS=300
+
 # Background worker (default: enabled)
 DISABLE_WORKER=false
 
 # Worker check interval in seconds (default: 5)
 WORKER_CHECK_INTERVAL=5
+```
+
+### Model Override Configuration
+
+You can override the default models used by workflow steps in three ways (in priority order):
+
+1. **Per-run options** (highest priority):
+```bash
+curl -X POST "http://localhost:8000/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "goal": "Generate Quarkus project",
+    "run_type": "workflow",
+    "options": {
+      "workflow": "quarkus-bootstrap-v1",
+      "models": {
+        "planner": "llama2:latest",
+        "coder": "codellama:latest"
+      },
+      "timeout_seconds": 900
+    }
+  }'
+```
+
+2. **Environment variables** (medium priority):
+```bash
+export OLLAMA_PLANNER_MODEL=llama2:latest
+export OLLAMA_CODER_MODEL=codellama:latest
+export OLLAMA_TIMEOUT_SECONDS=900
+```
+
+3. **Workflow defaults** (lowest priority):
+   - Defined in the workflow definition itself
+   - Used if no overrides are provided
+
+This flexibility allows you to:
+- Use lighter/faster models on resource-constrained systems (e.g., llama2 instead of gemma3:27b on an 18GB Mac)
+- Test different models without modifying code
+- Set system-wide defaults via environment variables
+- Override models for specific runs as needed
+
+**Example event changes with model override:**
+```
+Before: "Create project plan using Gemma3"
+        "Loading model: gemma3:27b"
+
+After:  "Create project plan using llama2"
+        "Loading model: llama2:latest"
 ```
 
 ### Project Setup
