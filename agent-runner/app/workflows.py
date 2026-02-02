@@ -7,6 +7,7 @@ Each workflow is a sequence of steps with specific tools and models.
 import os
 import logging
 import subprocess
+import re
 from typing import Dict, List, Optional, Callable, Any
 from pathlib import Path
 from dataclasses import dataclass
@@ -405,7 +406,6 @@ def apply_model_overrides(
         if new_model != original_model:
             # Try to update model reference in description
             # Match patterns like "using Gemma3" or "using Qwen3"
-            import re
             # Replace model mentions in description
             new_description = re.sub(
                 r'using \w+',
