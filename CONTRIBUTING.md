@@ -1,6 +1,6 @@
-# Contributing to AI Dev Factory
+# Contributing to Agent Runner
 
-Thank you for your interest in contributing to AI Dev Factory!
+Thank you for your interest in contributing to Agent Runner!
 
 ## Getting Started
 
@@ -364,4 +364,4 @@ Keep these in mind when contributing!
 
 ---
 
-**Thank you for contributing to AI Dev Factory!** 🎉
+**Thank you for contributing to Agent Runner!** 🎉

@@ -8,7 +8,7 @@ PORT_TAIGA ?= 9000
 
 # Default target
 help:
-	@echo "AI Dev Factory - Development Commands"
+	@echo "Agent Runner - Development Commands"
 	@echo ""
 	@echo "Service Management:"
 	@echo "  make install          Install all dependencies"

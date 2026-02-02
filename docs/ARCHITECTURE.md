@@ -1,4 +1,4 @@
-# Architecture Diagram - AI Dev Factory
+# Architecture Diagram - Agent Runner
 
 ## 📊 Services Overview
 
