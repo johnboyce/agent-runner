@@ -126,6 +126,56 @@ Historical analysis and development notes (timestamped):
 
 ## 🎓 **Learning Path**
 
+### Documentation Navigation Map
+
+```mermaid
+flowchart TD
+    START([New to Agent Runner?]) --> README[README.md<br/>Project Overview]
+    
+    README --> ROLE{What's your goal?}
+    
+    ROLE -->|Understand System| ARCH[ARCHITECTURE.md<br/>System Design & Diagrams]
+    ROLE -->|Quick Start| QS[Quick Start Section<br/>in DOCS_INDEX.md]
+    ROLE -->|Daily Development| QUICK[QUICK_REFERENCE.md<br/>Commands & API]
+    ROLE -->|See It Work| DEMO[AGENT_QUICKSTART.md<br/>One-Command Demo]
+    
+    QS --> INSTALL[make install]
+    INSTALL --> START_SERV[make start]
+    START_SERV --> BROWSER[Open localhost:3001]
+    BROWSER --> CREATE[Create a Run]
+    CREATE --> OBSERVE[Observe Execution]
+    
+    ARCH --> UNDERSTAND{Need More Detail?}
+    UNDERSTAND -->|Data Flow| SEQ[Sequence Diagrams]
+    UNDERSTAND -->|Database| ERD[ER Diagram]
+    UNDERSTAND -->|Components| COMP[Component Details]
+    
+    DEMO --> TRY[Try Creating Runs]
+    TRY --> DEEP{Want Deeper Understanding?}
+    
+    DEEP -->|Testing| TEST[TESTING.md<br/>Test Structure]
+    DEEP -->|Contributing| CONTRIB[CONTRIBUTING.md<br/>Development Guide]
+    DEEP -->|Features| FEATURES[Feature Docs]
+    
+    QUICK --> DAILY[Daily Development Work]
+    TEST --> DAILY
+    CONTRIB --> DAILY
+    
+    FEATURES --> MODAL[CREATE_RUN_MODAL.md]
+    FEATURES --> EXEC[AGENT_EXECUTION.md]
+    
+    DAILY --> NEED{Need Historical Context?}
+    NEED -->|Yes| ANALYSIS[docs/_analysis/<br/>Session Notes]
+    NEED -->|No| WORK[Continue Development]
+    
+    style START fill:#FFD700
+    style README fill:#87CEEB
+    style ARCH fill:#90EE90
+    style QUICK fill:#DDA0DD
+    style DAILY fill:#98FB98
+    style WORK fill:#32CD32
+```
+
 ### For New Team Members
 1. Read root [`README.md`](README.md)
 2. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)

@@ -70,7 +70,76 @@ ai-dev-factory/
 
 ## Development Workflow
 
-### Starting Services
+### Contributor Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Clone Repository] --> B[Create Feature Branch]
+    B --> C[Install Dependencies<br/>make install]
+    C --> D[Start Services<br/>make start]
+    D --> E{What are you doing?}
+    
+    E -->|Adding Feature| F[Write Code]
+    E -->|Fixing Bug| F
+    E -->|Updating Docs| G[Update Documentation]
+    
+    F --> H[Write/Update Tests]
+    H --> I[Run Tests<br/>make test]
+    I --> J{Tests Pass?}
+    J -->|No| F
+    J -->|Yes| K[Verify Manually]
+    
+    G --> K
+    
+    K --> L[Commit Changes<br/>Conventional Commits]
+    L --> M[Push to Branch]
+    M --> N[Open Pull Request]
+    N --> O[Address Review Comments]
+    O --> P{Approved?}
+    P -->|No| O
+    P -->|Yes| Q[Merge to Main]
+    
+    style F fill:#90EE90
+    style H fill:#87CEEB
+    style I fill:#FFD700
+    style K fill:#DDA0DD
+    style Q fill:#98FB98
+```
+
+### Testing Workflow
+
+```mermaid
+flowchart LR
+    A[Code Change] --> B{Change Type?}
+    
+    B -->|Backend Python| C1[Write pytest tests]
+    B -->|Frontend TypeScript| C2[Write Jest tests]
+    B -->|API Endpoint| C3[Test with curl/Postman]
+    B -->|UI Component| C4[Manual browser test]
+    
+    C1 --> D1[Run: make test]
+    C2 --> D2[Run: cd console && npm test]
+    C3 --> D3[Run: make test-cors]
+    C4 --> D4[Run: make start]
+    
+    D1 --> E{All Pass?}
+    D2 --> E
+    D3 --> E
+    D4 --> E
+    
+    E -->|No| F[Fix Issues]
+    F --> A
+    E -->|Yes| G[Coverage Check<br/>make test-coverage]
+    G --> H[Commit]
+    
+    style E fill:#FFD700
+    style G fill:#87CEEB
+    style H fill:#98FB98
+```
+
+---
+
+## Starting Services
 
 ```bash
 # Start all services in background
