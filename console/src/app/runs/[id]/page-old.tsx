@@ -2,18 +2,39 @@
 
 import { use, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Play, Pause, Square, MessageSquare, Clock,
   CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp,
   Terminal, Lightbulb, Cog, Copy, Check, ArrowDown
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useRunQuery } from '@/hooks/useRunQuery';
-import { useRunEventsQuery } from '@/hooks/useRunEventsQuery';
-import { performRunAction, submitDirective } from '@/lib/api';
+import { useRun } from '@/hooks/useRun';
+import { useRunEvents } from '@/hooks/useRunEvents';
 import { StatusPill, Card } from '@/components/ui';
 import { ErrorBanner } from '@/components/ErrorBanner';
+
+interface Run {
+  id: number;
+  project_id: number;
+  name?: string;
+  goal: string;
+  run_type?: string;
+  status: string;
+  current_iteration: number;
+  options?: Record<string, any>;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+interface Event {
+  id: number;
+  run_id: number;
+  type: string;
+  payload: string;
+  created_at: string;
+}
+
+const API_URL = process.env.NEXT_PUBLIC_AGENT_RUNNER_URL || 'http://localhost:8000';
 
 const EVENT_ICONS: Record<string, any> = {
   RUN_CREATED: Play,
@@ -30,7 +51,7 @@ const EVENT_ICONS: Record<string, any> = {
 };
 
 export default function RunDetail({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const { id } = use(params); // ✅ unwrap Promise params
   const [directiveText, setDirectiveText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [expandedEvents, setExpandedEvents] = useState<Set<number>>(new Set());
@@ -39,7 +60,6 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
   const eventsEndRef = useRef<HTMLDivElement>(null);
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -51,50 +71,21 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
   // Guard against malformed ID
   const runId = Number.isFinite(Number(id)) ? Number(id) : null;
 
-  // Use React Query hooks
+  // Use hardened polling hooks
   const {
-    run,
-    isLoading: runLoading,
-    isFetching: runFetching,
+    data: run,
+    loading: runLoading,
     error: runError,
-    refetch: refreshRun,
+    refresh: refreshRun,
     isTerminal
-  } = useRunQuery(runId);
+  } = useRun(runId);
 
   const {
     events,
-    isLoading: eventsLoading,
-    isFetching: eventsFetching,
+    loading: eventsLoading,
     error: eventsError,
-    refetch: refreshEvents
-  } = useRunEventsQuery(runId, { runStatus: run?.status });
-
-  // Mutations for run actions
-  const actionMutation = useMutation({
-    mutationFn: ({ action }: { action: 'pause' | 'resume' | 'stop' }) =>
-      performRunAction(runId!, action),
-    onSuccess: () => {
-      setError(null);
-      // Invalidate run query to refetch updated status
-      queryClient.invalidateQueries({ queryKey: ['run', runId] });
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
-
-  const directiveMutation = useMutation({
-    mutationFn: ({ text }: { text: string }) => submitDirective(runId!, text),
-    onSuccess: () => {
-      setDirectiveText('');
-      setError(null);
-      // Invalidate events to fetch the new directive event
-      queryClient.invalidateQueries({ queryKey: ['events', runId] });
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
+    refresh: refreshEvents
+  } = useRunEvents(runId, { runStatus: run?.status });
 
   // Auto-scroll to latest event
   useEffect(() => {
@@ -103,14 +94,44 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     }
   }, [events, autoScroll]);
 
-  const handleAction = (action: 'pause' | 'resume' | 'stop') => {
-    actionMutation.mutate({ action });
+  const handleAction = async (action: string) => {
+    try {
+      const response = await fetch(`${API_URL}/runs/${id}/${action}`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(`Failed to ${action}: ${errorData.detail}`);
+      }
+    } catch (err) {
+      setError(`Failed to ${action}`);
+    }
   };
 
-  const handleDirectiveSubmit = (e: React.FormEvent) => {
+  const handleDirectiveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!directiveText.trim()) return;
-    directiveMutation.mutate({ text: directiveText });
+
+    try {
+      const response = await fetch(`${API_URL}/runs/${id}/directive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: directiveText }),
+      });
+      
+      if (response.ok) {
+        setDirectiveText('');
+        setError(null);
+      } else {
+        const errorData = await response.json();
+        setError(`Failed to submit directive: ${errorData.detail}`);
+      }
+    } catch (err) {
+      setError('Failed to submit directive');
+    }
   };
 
   const toggleEventExpand = (eventId: number) => {
@@ -145,10 +166,9 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     ? events[events.length - 1].created_at
     : run?.created_at;
 
-  // Show spinner only on initial load without cached data
-  if (runLoading && !run) {
+  if (!run && runLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center pb-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Loading run details...</p>
@@ -157,9 +177,9 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     );
   }
 
-  if (!run && !runLoading) {
+  if (!run) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center pb-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <Card className="p-8 text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Run Not Found</h2>
@@ -176,7 +196,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 backdrop-blur-sm bg-white/90">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -192,33 +212,26 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {run?.name || `Run #${run?.id}`}
+                  {run.name || `Run #${run.id}`}
                 </h1>
-                {run && <StatusPill status={run.status} />}
-                {run?.run_type && run.run_type !== 'agent' && (
+                <StatusPill status={run.status} />
+                {run.run_type && run.run_type !== 'agent' && (
                   <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded">
                     {run.run_type}
                   </span>
                 )}
-                {/* Show subtle fetching indicator */}
-                {runFetching && (
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    updating
-                  </span>
-                )}
               </div>
-              <p className="text-gray-700 text-lg mb-2">{run?.goal}</p>
+              <p className="text-gray-700 text-lg mb-2">{run.goal}</p>
               <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
                 <span className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
-                  Created {run && formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
+                  Created {formatDistanceToNow(new Date(run.created_at), { addSuffix: true })}
                 </span>
                 <span>•</span>
-                <span>Project ID: {run?.project_id}</span>
+                <span>Project ID: {run.project_id}</span>
                 <span>•</span>
-                <span>Iteration: {run?.current_iteration}</span>
-                {lastUpdated && lastUpdated !== run?.created_at && (
+                <span>Iteration: {run.current_iteration}</span>
+                {lastUpdated && lastUpdated !== run.created_at && (
                   <>
                     <span>•</span>
                     <span>Last updated {formatDistanceToNow(new Date(lastUpdated), { addSuffix: true })}</span>
@@ -234,14 +247,14 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
         {/* Error Banners */}
         {runError && (
           <ErrorBanner
-            error={runError instanceof Error ? runError.message : 'Failed to load run'}
+            error={runError}
             onRetry={refreshRun}
             onDismiss={() => {}}
           />
         )}
         {eventsError && (
           <ErrorBanner
-            error={eventsError instanceof Error ? eventsError.message : 'Failed to load events'}
+            error={eventsError}
             onRetry={refreshEvents}
             onDismiss={() => {}}
           />
@@ -256,9 +269,9 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
               <div className="space-y-2">
                 <button
                   onClick={() => handleAction('pause')}
-                  disabled={!run || !['RUNNING'].includes(run.status) || actionMutation.isPending}
+                  disabled={!['RUNNING'].includes(run.status)}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    run && ['RUNNING'].includes(run.status) && !actionMutation.isPending
+                    ['RUNNING'].includes(run.status)
                       ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
@@ -268,9 +281,9 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
                 </button>
                 <button
                   onClick={() => handleAction('resume')}
-                  disabled={!run || !['PAUSED'].includes(run.status) || actionMutation.isPending}
+                  disabled={!['PAUSED'].includes(run.status)}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    run && ['PAUSED'].includes(run.status) && !actionMutation.isPending
+                    ['PAUSED'].includes(run.status)
                       ? 'bg-green-500 hover:bg-green-600 text-white'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
@@ -280,9 +293,9 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
                 </button>
                 <button
                   onClick={() => handleAction('stop')}
-                  disabled={!run || !['RUNNING', 'PAUSED', 'QUEUED'].includes(run.status) || actionMutation.isPending}
+                  disabled={!['RUNNING', 'PAUSED', 'QUEUED'].includes(run.status)}
                   className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    run && ['RUNNING', 'PAUSED', 'QUEUED'].includes(run.status) && !actionMutation.isPending
+                    ['RUNNING', 'PAUSED', 'QUEUED'].includes(run.status)
                       ? 'bg-red-500 hover:bg-red-600 text-white'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
@@ -302,20 +315,15 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
                   onChange={(e) => setDirectiveText(e.target.value)}
                   placeholder="Give the agent a directive..."
                   rows={4}
-                  disabled={directiveMutation.isPending}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 />
                 <button
                   type="submit"
-                  disabled={!directiveText.trim() || directiveMutation.isPending}
+                  disabled={!directiveText.trim()}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
                 >
-                  {directiveMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <MessageSquare className="w-4 h-4" />
-                  )}
-                  {directiveMutation.isPending ? 'Sending...' : 'Send Directive'}
+                  <MessageSquare className="w-4 h-4" />
+                  Send Directive
                 </button>
               </form>
             </Card>
@@ -346,16 +354,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
           {/* Right Column - Timeline */}
           <div className="lg:col-span-2">
             <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-gray-900">Event Timeline</h2>
-                {/* Show subtle updating indicator when fetching events */}
-                {eventsFetching && events.length > 0 && (
-                  <span className="text-xs text-gray-500 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    polling
-                  </span>
-                )}
-              </div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-6">Event Timeline</h2>
 
               {events && events.length > 0 ? (
                 <div className="relative">
@@ -441,11 +440,6 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
 
                   <div ref={eventsEndRef} />
                 </div>
-              ) : eventsLoading ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Loader2 className="w-12 h-12 mx-auto mb-4 opacity-50 animate-spin" />
-                  <p>Loading events...</p>
-                </div>
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -458,7 +452,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
 
         {/* Error Toast */}
         {error && (
-          <div className="fixed bottom-20 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-md z-50">
+          <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-md">
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">

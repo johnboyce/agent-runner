@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.20",
     "date-fns": "^3.0.0",
     "lucide-react": "^0.263.1",
     "next": "^16.1.6",
