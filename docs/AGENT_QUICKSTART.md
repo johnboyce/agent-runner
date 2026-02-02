@@ -14,6 +14,64 @@ You'll see a run automatically execute and complete in ~3-4 seconds!
 
 ## What You'll See
 
+### Execution Flow Visualization
+
+```mermaid
+sequenceDiagram
+    participant Script as Test Script
+    participant API as Agent Runner
+    participant Worker as Background Worker
+    participant Agent
+    participant DB as Database
+    
+    Script->>API: 1. Check health
+    API-->>Script: ✅ Running
+    
+    Script->>API: 2. Check worker status
+    API-->>Script: ✅ Worker running
+    
+    Script->>API: 3. Create project
+    API->>DB: INSERT project
+    API-->>Script: ✅ Project ID=1
+    
+    Script->>API: 4. Create run
+    API->>DB: INSERT run (status=QUEUED)
+    API-->>Script: ✅ Run ID=1, status=QUEUED
+    
+    Note over Script: Start polling...
+    
+    Script->>API: Poll: GET /runs/1
+    API-->>Script: status=QUEUED ⏳
+    
+    Note over Worker: Worker detects run
+    Worker->>DB: Claim run (status=RUNNING)
+    Worker->>Agent: execute_run(1)
+    
+    Script->>API: Poll: GET /runs/1
+    API-->>Script: status=RUNNING ⏳
+    
+    Agent->>DB: Log event (RUN_STARTED)
+    Agent->>Agent: Think (1s)
+    Agent->>DB: Log event (AGENT_THINKING)
+    Agent->>Agent: Plan (1s)
+    Agent->>DB: Log event (PLAN_GENERATED)
+    Agent->>Agent: Execute (1s)
+    Agent->>DB: Log event (EXECUTING)
+    Agent->>DB: UPDATE status=COMPLETED
+    Agent->>DB: Log event (RUN_COMPLETED)
+    
+    Script->>API: Poll: GET /runs/1
+    API-->>Script: status=COMPLETED ✅
+    
+    Script->>API: GET /runs/1/events
+    API->>DB: SELECT events
+    API-->>Script: All 6 events
+    
+    Note over Script: Test complete!
+```
+
+### Terminal Output
+
 ```
 🧪 Testing Agent Execution
 ==========================

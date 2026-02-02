@@ -75,6 +75,42 @@ Open: http://localhost:3001
 | Taiga (PM) | 9000 | http://localhost:9000 |
 | Ollama (LLM) | 11434 | http://localhost:11434 (not yet integrated) |
 
+### Service Architecture
+
+```mermaid
+graph TB
+    subgraph "Active Services"
+        Console[Console UI<br/>Port 3001<br/>✅ Active]
+        API[Agent Runner API<br/>Port 8000<br/>✅ Active]
+        Worker[Background Worker<br/>In-Process<br/>✅ Active]
+        DB[(SQLite DB<br/>platform.db<br/>✅ Active)]
+    end
+    
+    subgraph "Optional Services"
+        Forgejo[Forgejo Git<br/>Port 3000<br/>🟡 Optional]
+        Taiga[Taiga PM<br/>Port 9000<br/>🟡 Optional]
+        Ollama[Ollama LLM<br/>Port 11434<br/>🔴 Future]
+    end
+    
+    User[User Browser] --> Console
+    Console --> API
+    API --> DB
+    Worker --> DB
+    API -.-> Worker
+    
+    API -.future.-> Forgejo
+    API -.future.-> Taiga
+    Worker -.future.-> Ollama
+    
+    style Console fill:#4A90E2
+    style API fill:#50C878
+    style Worker fill:#E67E22
+    style DB fill:#FFD700
+    style Forgejo fill:#ddd
+    style Taiga fill:#ddd
+    style Ollama fill:#ddd
+```
+
 ---
 
 ## 🔍 API Endpoints
