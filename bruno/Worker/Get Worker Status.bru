@@ -1,0 +1,17 @@
+meta {
+  name: Get Worker Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/worker/status
+}
+
+docs {
+  Get the status of the background worker that processes runs.
+  
+  Returns:
+    - running (bool): Whether the background worker is running
+    - check_interval (int): How often (in seconds) the worker checks for new runs
+}

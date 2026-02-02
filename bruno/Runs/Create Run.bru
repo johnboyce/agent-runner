@@ -1,0 +1,51 @@
+meta {
+  name: Create Run
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/runs
+  body: json
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "project_id": 1,
+    "goal": "Add a new feature to the application",
+    "name": "Feature Development Run",
+    "run_type": "agent",
+    "options": {
+      "dry_run": false,
+      "verbose": true,
+      "max_steps": 50
+    },
+    "metadata": {
+      "priority": "high",
+      "team": "backend",
+      "ticket": "JIRA-123"
+    }
+  }
+}
+
+docs {
+  Create a new agent run.
+  
+  Request Body:
+    - project_id (required, int): ID of the project to run on
+    - goal (required, string): Description of what the agent should accomplish
+    - name (optional, string): Name for the run (auto-generated if not provided)
+    - run_type (optional, string): Type of run - "agent", "workflow", "pipeline", or "task" (default: "agent")
+    - options (optional, object):
+      - dry_run (bool): Simulate execution without making changes
+      - verbose (bool): Enable detailed logging
+      - max_steps (int): Maximum number of steps to execute
+    - metadata (optional, object): Custom key-value pairs for tracking
+  
+  Returns:
+    - Complete run object with status, timestamps, and configuration
+}

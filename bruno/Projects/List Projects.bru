@@ -1,0 +1,16 @@
+meta {
+  name: List Projects
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/projects
+}
+
+docs {
+  Get all projects in the system.
+  
+  Returns:
+    - Array of project objects with id, name, local_path, and created_at
+}

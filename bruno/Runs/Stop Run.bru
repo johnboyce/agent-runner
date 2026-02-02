@@ -1,0 +1,19 @@
+meta {
+  name: Stop Run
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/runs/1/stop
+}
+
+docs {
+  Stop a running agent (cannot be resumed).
+  
+  Path Parameters:
+    - run_id: ID of the run to stop
+  
+  Returns:
+    - Updated run object with status changed to "stopped"
+}

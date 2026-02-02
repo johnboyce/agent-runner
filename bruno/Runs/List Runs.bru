@@ -1,0 +1,19 @@
+meta {
+  name: List Runs
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/runs
+}
+
+docs {
+  Get all runs ordered by ID (most recent first).
+  
+  Returns:
+    - Array of run objects with full details including:
+      - id, project_id, name, status
+      - goal, run_type, options, metadata
+      - iterations, created_at, started_at, ended_at
+}

@@ -1,0 +1,33 @@
+meta {
+  name: Send Directive to Run
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/runs/1/directive
+  body: json
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "text": "Please focus on improving the error handling"
+  }
+}
+
+docs {
+  Send a directive (instruction) to a running agent.
+  
+  Path Parameters:
+    - run_id: ID of the run
+  
+  Request Body:
+    - text (required, string): The directive message to send
+  
+  Returns:
+    - Event object representing the directive that was created
+}
