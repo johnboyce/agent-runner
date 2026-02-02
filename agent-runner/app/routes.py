@@ -31,7 +31,6 @@ class CreateRunRequest(BaseModel):
     options: Optional[dict] = None  # e.g., {"dry_run": false, "verbose": true, "max_steps": 10}
     metadata: Optional[dict] = None  # Custom key-value pairs
 
-
 @router.post("/projects")
 def create_project(name: str, local_path: str, db: Session = Depends(get_db)):
     project = Project(name=name, local_path=local_path)
