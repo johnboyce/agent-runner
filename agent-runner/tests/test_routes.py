@@ -158,6 +158,52 @@ class TestRunEndpoints:
         assert data["status"] == "QUEUED"
         assert data["project_id"] == project["id"]
 
+    def test_create_run_regression_test(self, client):
+        """Regression test: Ensure POST /runs returns valid JSON and creates run successfully"""
+        project = create_project(client)
+        
+        # Test 1: Basic run creation
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Regression test run"
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert "id" in data
+        assert data["status"] == "QUEUED"
+        assert data["goal"] == "Regression test run"
+        assert data["run_type"] == "agent"
+        
+        # Test 2: Workflow run type
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test workflow",
+            "run_type": "workflow"
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert data["run_type"] == "workflow"
+        
+        # Test 3: Run with options and metadata
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test with options",
+            "name": "Custom Name",
+            "options": {"dry_run": True, "verbose": True},
+            "metadata": {"priority": "high"}
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert data["name"] == "Custom Name"
+        assert data["options"]["dry_run"] is True
+        assert data["metadata"]["priority"] == "high"
+        
+        # Verify all runs appear in list
+        resp = client.get("/runs")
+        _assert_ok(resp)
+        all_runs = _json(resp)
+        assert len(all_runs) >= 3
+
 
 class TestRunControlEndpoints:
     def test_pause_run(self, client):

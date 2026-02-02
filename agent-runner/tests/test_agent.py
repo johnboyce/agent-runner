@@ -42,6 +42,7 @@ class TestSimpleAgent:
         mock_run.id = 1
         mock_run.goal = "Test goal"
         mock_run.status = "QUEUED"
+        mock_run.run_type = "agent"
         mock_run.current_iteration = 0
 
         # Mock successful claim
@@ -71,6 +72,7 @@ class TestSimpleAgent:
         mock_run = Mock(spec=Run)
         mock_run.id = 1
         mock_run.goal = "Test goal"
+        mock_run.run_type = "agent"
 
         # Mock successful claim
         mock_query.filter.return_value.update.return_value = 1
@@ -93,6 +95,71 @@ class TestSimpleAgent:
 
         # Should have attempted to mark as FAILED
         assert mock_run.status == "FAILED"
+
+    def test_execute_workflow_run(self):
+        """Test workflow run execution"""
+        agent = SimpleAgent()
+
+        # Mock database and run
+        mock_db = Mock()
+        mock_run = Mock(spec=Run)
+        mock_run.id = 1
+        mock_run.goal = "Generate Quarkus project"
+        mock_run.status = "QUEUED"
+        mock_run.run_type = "workflow"
+        mock_run.project_id = 1
+        mock_run.options = '{"workflow_name": "quarkus-bootstrap-v1"}'
+
+        mock_project = Mock()
+        mock_project.id = 1
+        mock_project.local_path = "/tmp/test-project"
+
+        # Setup queries to return correct results
+        from app.models import Project
+        
+        def query_side_effect(model):
+            query_mock = Mock()
+            filter_mock = Mock()
+            
+            if model == Run:
+                # For the update query
+                filter_mock.update.return_value = 1
+                # For the select queries
+                filter_mock.first.return_value = mock_run
+                query_mock.filter.return_value = filter_mock
+            elif model == Project:
+                filter_mock.first.return_value = mock_project
+                query_mock.filter.return_value = filter_mock
+            else:
+                query_mock.filter.return_value = filter_mock
+                
+            return query_mock
+        
+        mock_db.query.side_effect = query_side_effect
+
+        # Mock workflow engine
+        mock_engine = Mock()
+        mock_engine.execute_workflow.return_value = {
+            "workflow_name": "quarkus-bootstrap-v1",
+            "steps": [{"step": 1}],
+            "artifacts": []
+        }
+
+        with patch('app.agent.SessionLocal', return_value=mock_db):
+            with patch('app.agent.WorkflowEngine', return_value=mock_engine):
+                with patch('app.agent.get_workflow') as mock_get_workflow:
+                    mock_workflow = Mock()
+                    mock_workflow.name = "quarkus-bootstrap-v1"
+                    mock_workflow.version = "1.0.0"
+                    mock_get_workflow.return_value = mock_workflow
+                    
+                    result = agent.execute_run(1)
+
+        # Should succeed
+        assert result is True
+
+        # Should have executed workflow
+        mock_engine.execute_workflow.assert_called_once()
 
 
 class TestEventLogging:
