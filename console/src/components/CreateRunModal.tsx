@@ -53,6 +53,9 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
   const [fetchingProjects, setFetchingProjects] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Example JSON for metadata field
+  const metadataExample = '{"priority": "high", "team": "backend"}';
+
   // Generate default run name
   const getDefaultRunName = () => {
     const now = new Date();
@@ -256,6 +259,9 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     required
                     disabled={loading}
                   >
+                    {!selectedProjectId && (
+                      <option value="" disabled>Select a project...</option>
+                    )}
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name} ({project.local_path})
@@ -418,7 +424,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                         <div className="mt-2 text-xs text-gray-600 space-y-1">
                           <p className="font-medium">Add custom key-value pairs as JSON:</p>
                           <ul className="list-disc ml-4 space-y-0.5">
-                            <li>Example: <code className="bg-gray-200 px-1 rounded">{"{"}"priority": "high", "team": "backend"{"}"}</code></li>
+                            <li>Example: <code className="bg-gray-200 px-1 rounded">{metadataExample}</code></li>
                             <li>Leave as <code className="bg-gray-200 px-1 rounded">{"{}"}</code> if no metadata needed</li>
                             <li>Must be valid JSON format</li>
                           </ul>

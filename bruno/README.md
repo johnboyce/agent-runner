@@ -2,6 +2,8 @@
 
 This directory contains a [Bruno](https://www.usebruno.com/) API collection for testing and interacting with the Agent Runner API.
 
+> **Note:** This collection is compatible with Bruno 3.0.2 and later versions.
+
 ## What is Bruno?
 
 Bruno is an open-source, Git-friendly API client similar to Postman but stores collections as plain text files that can be version controlled. It's lightweight, fast, and privacy-focused (no cloud sync required).
