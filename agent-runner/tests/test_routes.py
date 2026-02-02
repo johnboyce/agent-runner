@@ -140,6 +140,24 @@ class TestRunEndpoints:
         assert isinstance(data, list)
         assert len(data) >= 2
 
+    def test_create_run_with_extra_fields(self, client):
+        """Test that API gracefully handles extra fields in request body"""
+        project = create_project(client)
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Demo run: 60-second heartbeat",
+            "params": {  # Extra field that should be ignored
+                "duration_seconds": 60,
+                "interval_seconds": 5,
+                "message_prefix": "heartbeat"
+            }
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert data["goal"] == "Demo run: 60-second heartbeat"
+        assert data["status"] == "QUEUED"
+        assert data["project_id"] == project["id"]
+
 
 class TestRunControlEndpoints:
     def test_pause_run(self, client):

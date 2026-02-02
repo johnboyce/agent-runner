@@ -22,13 +22,14 @@ class DirectiveIn(BaseModel):
     text: str
 
 class CreateRunRequest(BaseModel):
+    model_config = {"extra": "ignore"}
+    
     project_id: int
     goal: str
     name: Optional[str] = None
     run_type: RunType = RunType.agent  # Has default, doesn't need Optional
     options: Optional[dict] = None  # e.g., {"dry_run": false, "verbose": true, "max_steps": 10}
     metadata: Optional[dict] = None  # Custom key-value pairs
-
 
 @router.post("/projects")
 def create_project(name: str, local_path: str, db: Session = Depends(get_db)):

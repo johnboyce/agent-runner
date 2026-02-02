@@ -126,6 +126,30 @@ curl -X POST http://localhost:8000/runs \
 # Response: {"detail": [{"loc": ["body", "project_id"], "msg": "field required"}]}
 ```
 
+**Robust Extra Field Handling:**
+
+The API gracefully handles extra/unrecognized fields in request bodies by ignoring them rather than returning validation errors. This makes the API more robust and forward-compatible:
+
+```bash
+# Request with extra 'params' field - succeeds with 200 OK
+curl -X POST http://localhost:8000/runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "goal": "Demo run",
+    "params": {
+      "duration": 60,
+      "interval": 5
+    }
+  }'
+# Response: 200 OK (params field is ignored)
+```
+
+This behavior ensures that:
+- Clients can send additional contextual data without breaking requests
+- New fields can be added to client requests without requiring API updates
+- API remains compatible with different client versions
+
 ---
 
 ## Endpoints
@@ -351,7 +375,7 @@ Create a new run.
     "verbose": true,
     "max_steps": 10
   },
-  "run_metadata": {
+  "metadata": {
     "priority": "high",
     "assignee": "agent-1"
   }
@@ -366,7 +390,23 @@ Create a new run.
 - `name` (string) - Auto-generated if not provided
 - `run_type` (string) - Defaults to "agent"
 - `options` (object) - Configuration options
-- `run_metadata` (object) - Custom metadata
+- `metadata` (object) - Custom metadata
+
+**Note on Extra Fields:**
+The API gracefully ignores any unrecognized fields in the request body. This allows for forward compatibility and prevents validation errors when extra fields are included. For example, a request with additional fields like `params` or `custom_data` will be accepted without error:
+
+```json
+{
+  "project_id": 1,
+  "goal": "Demo run: 60-second heartbeat",
+  "params": {
+    "duration_seconds": 60,
+    "interval_seconds": 5
+  }
+}
+```
+
+This request will succeed (returning 200 OK) with the extra `params` field being ignored.
 
 **Request:**
 ```bash
@@ -898,6 +938,34 @@ done
 
 # 4. Get all events
 curl -s http://localhost:8000/runs/$RUN_ID/events | jq
+```
+
+### Heartbeat Demo Run
+
+Example of creating a simple demo run with custom parameters (note that extra fields like `params` are gracefully ignored):
+
+```bash
+# Set API base URL
+API="http://localhost:8000"
+
+# Create a demo project if it doesn't exist
+curl -X POST "$API/projects?name=demo-project&local_path=/tmp/demo"
+
+# Create a run with extra fields (params) - API gracefully ignores unknown fields
+curl -i -X POST "$API/runs" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "goal": "Demo run: 60-second heartbeat. Emit an event every 5 seconds, then finish successfully.",
+    "params": {
+      "duration_seconds": 60,
+      "interval_seconds": 5,
+      "message_prefix": "heartbeat"
+    }
+  }'
+
+# Expected response: 200 OK with run object
+# The 'params' field is ignored, but the run is created successfully
 ```
 
 ---
