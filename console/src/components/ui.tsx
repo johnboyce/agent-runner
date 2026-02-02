@@ -5,6 +5,13 @@ interface StatusPillProps {
   size?: 'sm' | 'md';
 }
 
+/**
+ * StatusPill - Displays a color-coded status badge with animated dot indicator
+ * 
+ * @param status - Run status (QUEUED, RUNNING, PAUSED, STOPPED, COMPLETED, FAILED)
+ * @param size - Size variant ('sm' | 'md')
+ * @returns Status badge with appropriate styling and animation
+ */
 export function StatusPill({ status, size = 'md' }: StatusPillProps) {
   const sizeClasses = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-3 py-1 text-sm';
 
@@ -32,6 +39,13 @@ interface CardProps {
   className?: string;
 }
 
+/**
+ * Card - Reusable container component with hover effects
+ * 
+ * @param children - Content to display inside the card
+ * @param className - Additional CSS classes to apply
+ * @returns Styled card component with shadow and hover effects
+ */
 export function Card({ children, className = '' }: CardProps) {
   return (
     <div className={`bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow ${className}`}>
@@ -47,6 +61,15 @@ interface EmptyStateProps {
   action?: ReactNode;
 }
 
+/**
+ * EmptyState - Displays a centered empty state message with optional action
+ * 
+ * @param icon - Optional icon to display above the title
+ * @param title - Main heading for the empty state
+ * @param description - Descriptive text explaining the empty state
+ * @param action - Optional action button or element
+ * @returns Centered empty state component
+ */
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="text-center py-12">
