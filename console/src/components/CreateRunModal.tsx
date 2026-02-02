@@ -51,6 +51,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
   const [error, setError] = useState<string | null>(null);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [fetchingProjects, setFetchingProjects] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Generate default run name
   const getDefaultRunName = () => {
@@ -80,6 +81,7 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
       });
       setError(null);
       setJsonError(null);
+      setShowAdvanced(false);
     }
   }, [isOpen]);
 
@@ -254,13 +256,15 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
                     required
                     disabled={loading}
                   >
-                    <option value="">Select a project...</option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name} ({project.local_path})
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    The project repository where the agent will work
+                  </p>
                 </div>
 
                 {/* Run Name (Optional) */}
@@ -377,29 +381,51 @@ export function CreateRunModal({ isOpen, onClose, onSuccess, apiUrl }: CreateRun
 
                 {/* Metadata (JSON) */}
                 <div>
-                  <label htmlFor="metadata" className="block text-sm font-medium text-gray-700 mb-2">
-                    Custom Metadata <span className="text-gray-400 text-xs">(JSON format)</span>
-                  </label>
-                  <textarea
-                    id="metadata"
-                    value={metadataJson}
-                    onChange={(e) => handleMetadataChange(e.target.value)}
-                    placeholder='{"key": "value", "priority": "high"}'
-                    rows={4}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-sm ${
-                      jsonError ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                    }`}
-                    disabled={loading}
-                  />
-                  {jsonError && (
-                    <div className="mt-2 flex items-start gap-2 text-sm text-red-600">
-                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span>{jsonError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 mb-2 hover:text-gray-900 transition-colors"
+                  >
+                    <span>Advanced Options</span>
+                    <span className={`transform transition-transform ${showAdvanced ? 'rotate-180' : ''}`}>
+                      ▼
+                    </span>
+                  </button>
+                  
+                  {showAdvanced && (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                      <div>
+                        <label htmlFor="metadata" className="block text-sm font-medium text-gray-700 mb-2">
+                          Custom Metadata <span className="text-gray-400 text-xs">(optional)</span>
+                        </label>
+                        <textarea
+                          id="metadata"
+                          value={metadataJson}
+                          onChange={(e) => handleMetadataChange(e.target.value)}
+                          placeholder='{"key": "value", "priority": "high"}'
+                          rows={4}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-sm ${
+                            jsonError ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'
+                          }`}
+                          disabled={loading}
+                        />
+                        {jsonError && (
+                          <div className="mt-2 flex items-start gap-2 text-sm text-red-600">
+                            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span>{jsonError}</span>
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-gray-600 space-y-1">
+                          <p className="font-medium">Add custom key-value pairs as JSON:</p>
+                          <ul className="list-disc ml-4 space-y-0.5">
+                            <li>Example: <code className="bg-gray-200 px-1 rounded">{"{"}"priority": "high", "team": "backend"{"}"}</code></li>
+                            <li>Leave as <code className="bg-gray-200 px-1 rounded">{"{}"}</code> if no metadata needed</li>
+                            <li>Must be valid JSON format</li>
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                   )}
-                  <p className="mt-2 text-xs text-gray-500">
-                    Optional key-value pairs for custom metadata
-                  </p>
                 </div>
 
                 {/* Error Display */}
