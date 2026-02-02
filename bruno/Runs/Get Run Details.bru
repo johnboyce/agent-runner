@@ -1,0 +1,19 @@
+meta {
+  name: Get Run Details
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/runs/1
+}
+
+docs {
+  Get details for a specific run.
+  
+  Path Parameters:
+    - run_id: ID of the run to retrieve
+  
+  Returns:
+    - Complete run object with all details
+}

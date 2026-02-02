@@ -1,0 +1,21 @@
+meta {
+  name: Get Run Events
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/runs/1/events
+}
+
+docs {
+  Get all events for a specific run (logs, status changes, etc.).
+  
+  Path Parameters:
+    - run_id: ID of the run
+  
+  Returns:
+    - Array of event objects with:
+      - id, run_id, event_type, data
+      - created_at timestamp
+}

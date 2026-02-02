@@ -1,0 +1,19 @@
+meta {
+  name: Pause Run
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/runs/1/pause
+}
+
+docs {
+  Pause a running agent.
+  
+  Path Parameters:
+    - run_id: ID of the run to pause
+  
+  Returns:
+    - Updated run object with status changed to "paused"
+}

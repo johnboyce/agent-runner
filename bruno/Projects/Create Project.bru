@@ -1,0 +1,28 @@
+meta {
+  name: Create Project
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/projects?name=my-test-project&local_path=/home/user/projects/test
+}
+
+params:query {
+  name: my-test-project
+  local_path: /home/user/projects/test
+}
+
+docs {
+  Create a new project in the system.
+  
+  Query Parameters:
+    - name (required): Project name
+    - local_path (required): Full path to the project directory
+  
+  Returns:
+    - id: Project ID
+    - name: Project name
+    - local_path: Project path
+    - created_at: Timestamp when created
+}

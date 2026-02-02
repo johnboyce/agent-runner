@@ -1,0 +1,19 @@
+meta {
+  name: Resume Run
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/runs/1/resume
+}
+
+docs {
+  Resume a paused agent run.
+  
+  Path Parameters:
+    - run_id: ID of the run to resume
+  
+  Returns:
+    - Updated run object with status changed back to "running"
+}
