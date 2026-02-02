@@ -405,10 +405,10 @@ def apply_model_overrides(
         new_description = step.description
         if new_model != original_model:
             # Try to update model reference in description
-            # Match patterns like "using Gemma3" or "using Qwen3"
-            # Replace model mentions in description
+            # Match patterns like "using Gemma3" or "using Qwen3-Coder"
+            # Use [\w-]+ to match word characters and hyphens
             new_description = re.sub(
-                r'using \w+',
+                r'using [\w-]+',
                 f'using {new_model.split(":")[0]}',
                 step.description,
                 flags=re.IGNORECASE
