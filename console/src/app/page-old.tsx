@@ -5,12 +5,35 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Play, Search, Filter, RefreshCw, Activity, AlertCircle, Plus, CheckCircle, FolderGit2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { usePolling } from '@/hooks/usePolling';
-import { useRuns } from '@/hooks/useRunsQuery';
+import { useAdaptivePolling, usePolling } from '@/hooks/usePolling';
 import { TIMEOUTS } from '@/lib/timeouts';
 import { StatusPill, Card, EmptyState } from '@/components/ui';
 import { CreateRunModal } from '@/components/CreateRunModal';
-import type { WorkerStatus } from '@/lib/api';
+
+interface Project {
+  id: number;
+  name: string;
+  local_path: string;
+  created_at: string;
+}
+
+interface Run {
+  id: number;
+  project_id: number;
+  name?: string;
+  goal: string;
+  run_type?: string;
+  status: string;
+  current_iteration: number;
+  options?: Record<string, any>;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+interface WorkerStatus {
+  running: boolean;
+  check_interval: number;
+}
 
 const API_URL = process.env.NEXT_PUBLIC_AGENT_RUNNER_URL || 'http://localhost:8000';
 const FORGEJO_URL = process.env.NEXT_PUBLIC_FORGEJO_URL || 'http://localhost:3000';
@@ -35,17 +58,28 @@ export default function Home() {
     };
   }, []);
 
-  // Use React Query for runs with adaptive polling
-  const { runs, isLoading, isFetching, error, activeCount } = useRuns();
+  // Fetch runs with adaptive polling (fast when active, slow when idle)
+  const { data: runs, loading: runsLoading, error: runsError } = useAdaptivePolling<Run[]>(
+    async (signal) => {
+      const response = await fetch(`${API_URL}/runs`, { signal, cache: 'no-store' });
+      if (!response.ok) throw new Error('Failed to fetch runs');
+      return response.json();
+    },
+    (data) => {
+      // Fast poll if any runs are active
+      return data?.some(run => ['QUEUED', 'RUNNING', 'PAUSED'].includes(run.status)) || false;
+    },
+    { timeout: TIMEOUTS.runs }
+  );
 
-  // Fetch worker status (slower fixed polling) - keep using old hook for now
+  // Fetch worker status (slower fixed polling)
   const { data: workerStatus } = usePolling<WorkerStatus>(
     async (signal) => {
       const response = await fetch(`${API_URL}/worker/status`, { signal, cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch worker status');
       return response.json();
     },
-    { interval: 5000, timeout: TIMEOUTS.worker }
+    { interval: 5000, timeout: TIMEOUTS.worker } // Check every 5 seconds
   );
 
   // Filter and search runs
@@ -72,6 +106,8 @@ export default function Home() {
     return filtered;
   }, [runs, filter, searchQuery]);
 
+  const activeCount = runs?.filter(r => ['QUEUED', 'RUNNING', 'PAUSED'].includes(r.status)).length || 0;
+
   // Check Forgejo and Taiga status
   const { data: forgejoStatus } = usePolling<{ status: string }>(
     async (signal) => {
@@ -84,10 +120,11 @@ export default function Home() {
         });
         return { status: 'online' };
       } catch {
+        // Network error, timeout, or abort means service is down/unreachable
         return { status: 'offline' };
       }
     },
-    { interval: 30000, timeout: TIMEOUTS.health }
+    { interval: 30000, timeout: TIMEOUTS.health } // Check every 30 seconds
   );
 
   const { data: taigaStatus } = usePolling<{ status: string }>(
@@ -101,14 +138,15 @@ export default function Home() {
         });
         return { status: 'online' };
       } catch {
+        // Network error, timeout, or abort means service is down/unreachable
         return { status: 'offline' };
       }
     },
-    { interval: 30000, timeout: TIMEOUTS.health }
+    { interval: 30000, timeout: TIMEOUTS.health } // Check every 30 seconds
   );
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 pb-8">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100">
       {/* Success Toast */}
       {showToast && (
         <div className="fixed top-4 right-4 z-60 animate-slide-in">
@@ -159,7 +197,7 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Forgejo Status */}
+              {/* Forgejo Status (Optional) */}
               {forgejoStatus && (
                 <a
                   href={FORGEJO_URL}
@@ -179,7 +217,7 @@ export default function Home() {
                 </a>
               )}
 
-              {/* Taiga Status */}
+              {/* Taiga Status (Optional) */}
               {taigaStatus && (
                 <a
                   href={TAIGA_URL}
@@ -225,11 +263,7 @@ export default function Home() {
                 <p className="text-3xl font-bold text-green-600 mt-1">{activeCount}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-lg">
-                {isFetching && activeCount > 0 ? (
-                  <RefreshCw className="w-6 h-6 text-green-600 animate-spin" style={{ animationDuration: '3s' }} />
-                ) : (
-                  <RefreshCw className="w-6 h-6 text-green-600" />
-                )}
+                <RefreshCw className="w-6 h-6 text-green-600 animate-spin" style={{ animationDuration: '3s' }} />
               </div>
             </div>
           </Card>
@@ -322,20 +356,19 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Show spinner only on initial load without cached data */}
-          {isLoading && !runs ? (
+          {runsLoading && !runs && !runsError ? (
             <Card className="p-12">
               <div className="flex items-center justify-center">
                 <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
                 <span className="ml-3 text-gray-600">Loading runs...</span>
               </div>
             </Card>
-          ) : error ? (
+          ) : runsError ? (
             <Card className="p-6">
               <EmptyState
                 icon={<AlertCircle className="w-12 h-12" />}
                 title="Failed to load runs"
-                description={error instanceof Error ? error.message : 'Unknown error'}
+                description={runsError}
               />
             </Card>
           ) : filteredRuns.length === 0 ? (
@@ -359,14 +392,6 @@ export default function Home() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {/* Show subtle updating indicator when refetching */}
-              {isFetching && runs && (
-                <div className="text-xs text-gray-500 flex items-center gap-2 mb-2">
-                  <RefreshCw className="w-3 h-3 animate-spin" />
-                  Updating...
-                </div>
-              )}
-              
               {filteredRuns.map((run) => (
                 <Link key={run.id} href={`/runs/${run.id}`}>
                   <Card className="p-6 hover:border-blue-300 transition-all cursor-pointer">
