@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FolderGit2, Plus, Loader2, AlertCircle, ArrowLeft, Trash2, Calendar } from 'lucide-react';
+import { FolderGit2, Plus, Loader2, AlertCircle, ArrowLeft, Calendar } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Card, EmptyState } from '@/components/ui';
 
