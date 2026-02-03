@@ -124,3 +124,134 @@ class TestOllamaProvider:
         
         provider = OllamaProvider()
         assert provider.check_health() is False
+
+
+class TestHeartbeatFunctionality:
+    """Tests for heartbeat events during generation"""
+    
+    @patch('app.providers.requests.post')
+    @patch('app.providers.time.time')
+    def test_heartbeat_includes_elapsed_time(self, mock_time, mock_post):
+        """Test that heartbeat messages include elapsed time"""
+        import time
+        
+        # Mock time progression: start at 0, then 10s for done event
+        call_count = [0]
+        def time_side_effect():
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return 0.0  # start_time
+            else:
+                return 10.0  # all other calls return 10s elapsed
+        
+        mock_time.side_effect = time_side_effect
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"response": "Generated text"}
+        
+        # Simulate delay for heartbeat to trigger
+        def delayed_post(*args, **kwargs):
+            time.sleep(0.05)
+            return mock_response
+        
+        mock_post.side_effect = delayed_post
+        
+        events = []
+        def event_callback(event_type, message):
+            events.append((event_type, message))
+        
+        provider = OllamaProvider()
+        result = provider.generate(
+            "Test prompt",
+            model="test-model",
+            event_callback=event_callback,
+            timeout=60,
+            heartbeat_interval=1  # Short interval for testing
+        )
+        
+        assert result == "Generated text"
+        
+        # Check that DONE event includes elapsed time
+        done_events = [e for e in events if e[0] == EventType.DONE]
+        assert len(done_events) == 1
+        assert "10s" in done_events[0][1]
+    
+    @patch('app.providers.requests.post')
+    def test_heartbeat_interval_zero_disables_heartbeat(self, mock_post):
+        """Test that setting heartbeat_interval to 0 disables heartbeat thread"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"response": "Generated text"}
+        mock_post.return_value = mock_response
+        
+        events = []
+        def event_callback(event_type, message):
+            events.append((event_type, message))
+        
+        provider = OllamaProvider()
+        result = provider.generate(
+            "Test prompt",
+            model="test-model",
+            event_callback=event_callback,
+            timeout=30,
+            heartbeat_interval=0  # Disable heartbeat
+        )
+        
+        assert result == "Generated text"
+        
+        # Should not have any HEARTBEAT events
+        heartbeat_events = [e for e in events if e[0] == EventType.HEARTBEAT]
+        assert len(heartbeat_events) == 0
+    
+    @patch('app.providers.requests.post')
+    def test_timeout_error_includes_elapsed_time(self, mock_post):
+        """Test that timeout errors include elapsed time"""
+        import requests
+        
+        mock_post.side_effect = requests.exceptions.Timeout("Request timed out")
+        
+        events = []
+        def event_callback(event_type, message):
+            events.append((event_type, message))
+        
+        provider = OllamaProvider()
+        
+        with pytest.raises(requests.exceptions.Timeout):
+            provider.generate(
+                "Test prompt",
+                model="test-model",
+                event_callback=event_callback,
+                timeout=30
+            )
+        
+        # Check that ERROR event includes elapsed time
+        error_events = [e for e in events if e[0] == EventType.ERROR]
+        assert len(error_events) == 1
+        assert "elapsed=" in error_events[0][1]
+    
+    @patch('app.providers.requests.post')
+    def test_request_error_includes_elapsed_time(self, mock_post):
+        """Test that request errors include elapsed time"""
+        import requests
+        
+        mock_post.side_effect = requests.exceptions.ConnectionError("Connection failed")
+        
+        events = []
+        def event_callback(event_type, message):
+            events.append((event_type, message))
+        
+        provider = OllamaProvider()
+        
+        with pytest.raises(requests.exceptions.RequestException):
+            provider.generate(
+                "Test prompt",
+                model="test-model",
+                event_callback=event_callback,
+                timeout=30
+            )
+        
+        # Check that ERROR event includes elapsed time
+        error_events = [e for e in events if e[0] == EventType.ERROR]
+        assert len(error_events) == 1
+        assert "after" in error_events[0][1].lower() and "s" in error_events[0][1]
