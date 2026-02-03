@@ -11,6 +11,7 @@ import {
 import { formatDistanceToNow, format } from 'date-fns';
 import { useRunQuery } from '@/hooks/useRunQuery';
 import { useRunEventsQuery } from '@/hooks/useRunEventsQuery';
+import { useRunEventsSSE } from '@/hooks/useRunEventsSSE';
 import { performRunAction, submitDirective } from '@/lib/api';
 import { StatusPill, Card } from '@/components/ui';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -61,13 +62,22 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     isTerminal
   } = useRunQuery(runId);
 
+  // Try SSE first, fall back to polling if SSE fails
+  const { connectionState: sseState, error: sseError } = useRunEventsSSE(runId, runId !== null);
+  
+  // Use polling only as fallback when SSE is in fallback mode
+  const usePolling = sseState === 'fallback' || sseState === 'disconnected';
+  
   const {
     events,
     isLoading: eventsLoading,
     isFetching: eventsFetching,
     error: eventsError,
     refetch: refreshEvents
-  } = useRunEventsQuery(runId, { runStatus: run?.status });
+  } = useRunEventsQuery(runId, { 
+    runStatus: run?.status,
+    enabled: usePolling  // Only enable polling when SSE is not available
+  });
 
   // Mutations for run actions
   const actionMutation = useMutation({
