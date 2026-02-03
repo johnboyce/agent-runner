@@ -82,6 +82,8 @@ export function useRunEventsSSE(
       updateConnectionState('connecting');
       setError(null);
 
+      // Get last event ID - if we have cached events, resume from there
+      // Otherwise start from beginning (after_id=0 means fetch all)
       const lastEventId = getLastEventId();
       const url = `${API_URL}/runs/${runId}/events/stream${lastEventId > 0 ? `?after_id=${lastEventId}` : ''}`;
       

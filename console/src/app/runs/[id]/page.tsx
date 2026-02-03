@@ -62,11 +62,14 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     isTerminal
   } = useRunQuery(runId);
 
-  // Try SSE first, fall back to polling if SSE fails
-  const { connectionState: sseState, error: sseError } = useRunEventsSSE(runId, runId !== null);
+  // Try SSE for real-time updates
+  const { connectionState: sseState, error: sseError } = useRunEventsSSE(
+    runId, 
+    runId !== null && !isTerminal  // Don't use SSE for completed runs
+  );
   
-  // Use polling only as fallback when SSE is in fallback mode
-  const usePolling = sseState === 'fallback' || sseState === 'disconnected';
+  // Use polling as fallback when SSE is unavailable or for terminal runs
+  const usePolling = sseState === 'fallback' || isTerminal;
   
   const {
     events,
@@ -76,7 +79,7 @@ export default function RunDetail({ params }: { params: Promise<{ id: string }> 
     refetch: refreshEvents
   } = useRunEventsQuery(runId, { 
     runStatus: run?.status,
-    enabled: usePolling  // Only enable polling when SSE is not available
+    enabled: usePolling  // Only enable polling when in fallback mode
   });
 
   // Mutations for run actions
