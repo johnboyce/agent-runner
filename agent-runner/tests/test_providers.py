@@ -132,19 +132,13 @@ class TestHeartbeatFunctionality:
     @patch('app.providers.requests.post')
     @patch('app.providers.time.time')
     def test_heartbeat_includes_elapsed_time(self, mock_time, mock_post):
-        """Test that heartbeat messages include elapsed time"""
+        """Test that DONE event messages include elapsed time"""
         import time
+        import itertools
         
         # Mock time progression: start at 0, then 10s for done event
-        call_count = [0]
-        def time_side_effect():
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return 0.0  # start_time
-            else:
-                return 10.0  # all other calls return 10s elapsed
-        
-        mock_time.side_effect = time_side_effect
+        time_values = itertools.cycle([0.0, 10.0])
+        mock_time.side_effect = lambda: next(time_values)
         
         mock_response = Mock()
         mock_response.status_code = 200

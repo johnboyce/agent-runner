@@ -150,8 +150,8 @@ class OllamaProvider:
             raise
         
         finally:
-            # Stop heartbeat thread
-            if heartbeat_thread:
+            # Stop heartbeat thread if it was started
+            if heartbeat_thread is not None:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=1)
     
