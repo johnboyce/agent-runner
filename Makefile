@@ -71,7 +71,7 @@ start-agent:
 	@echo "🚀 Starting agent runner..."
 	cd agent-runner && . .venv/bin/activate && \
 		[ -f .env ] && export $$(grep -v '^#' .env | xargs) || true && \
-		python -m uvicorn app.main:app --reload --port $(PORT_AGENT) --host 0.0.0.0
+		python -m uvicorn app.main:app --reload --port $(PORT_AGENT) --host 0.0.0.0 --log-level debug
 
 start-agent-bg:
 	@echo "🚀 Starting agent runner (background)..."
