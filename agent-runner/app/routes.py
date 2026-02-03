@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
 from enum import Enum
 import json
 from datetime import datetime
+import asyncio
 from .database import get_db
 from .models import Project, Run, Event
 from .worker import get_worker
@@ -89,8 +91,97 @@ def list_runs(db: Session = Depends(get_db)):
     return [r.to_dict() for r in db.query(Run).order_by(Run.id.desc()).all()]
 
 @router.get("/runs/{run_id}/events")
-def get_run_events(run_id: int, db: Session = Depends(get_db)):
-    return [e.to_dict() for e in db.query(Event).filter(Event.run_id == run_id).order_by(Event.id.asc()).all()]
+def get_run_events(run_id: int, after_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    REST endpoint to fetch events for a run.
+    Supports cursor-based pagination via after_id query parameter.
+    """
+    query = db.query(Event).filter(Event.run_id == run_id)
+    if after_id is not None and after_id > 0:
+        query = query.filter(Event.id > after_id)
+    return [e.to_dict() for e in query.order_by(Event.id.asc()).all()]
+
+
+@router.get("/runs/{run_id}/events/stream")
+async def stream_run_events(
+    run_id: int,
+    request: Request,
+    after_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    SSE endpoint to stream events for a run in real-time.
+    Supports resuming via Last-Event-ID header or after_id query parameter.
+    """
+    # Verify run exists
+    run = db.query(Run).filter(Run.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    
+    # Get starting cursor from Last-Event-ID header or after_id query param
+    last_event_id = request.headers.get("Last-Event-ID")
+    cursor = 0
+    if last_event_id and last_event_id.isdigit():
+        cursor = int(last_event_id)
+    elif after_id is not None:
+        cursor = after_id
+    
+    async def event_generator():
+        """Generator that polls DB for new events and yields SSE frames"""
+        nonlocal cursor
+        keepalive_counter = 0
+        poll_interval = 1.0  # Poll DB every 1 second
+        keepalive_interval = 15  # Send keepalive every 15 seconds
+        
+        try:
+            while True:
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    break
+                
+                # Fetch new events from DB
+                # Refresh session to get latest data
+                db.expire_all()
+                new_events = db.query(Event).filter(
+                    Event.run_id == run_id,
+                    Event.id > cursor
+                ).order_by(Event.id.asc()).all()
+                
+                # Send each new event as SSE frame
+                for event in new_events:
+                    event_data = event.to_dict()
+                    # Format as SSE: id, event (optional), data, blank line
+                    yield f"id: {event.id}\n"
+                    yield f"event: {event.type}\n"
+                    yield f"data: {json.dumps(event_data)}\n\n"
+                    cursor = event.id
+                
+                # Send keepalive comment if no events
+                keepalive_counter += 1
+                if keepalive_counter >= keepalive_interval:
+                    yield ": keepalive\n\n"
+                    keepalive_counter = 0
+                
+                # Wait before next poll
+                await asyncio.sleep(poll_interval)
+                
+        except asyncio.CancelledError:
+            # Client disconnected gracefully
+            pass
+        except Exception as e:
+            # Log error but don't crash
+            print(f"SSE stream error for run {run_id}: {e}")
+        # Note: DB session cleanup handled by FastAPI dependency injection
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
 
 @router.post("/runs/{run_id}/directive")
 def create_directive(run_id: int, body: DirectiveIn, db: Session = Depends(get_db)):

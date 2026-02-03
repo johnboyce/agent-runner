@@ -245,6 +245,38 @@ class TestEventEndpoints:
         assert len(data) >= 1
         assert data[0]["type"] == "RUN_CREATED"
 
+    def test_get_run_events_with_after_id(self, client):
+        """Test cursor-based pagination for events"""
+        project = create_project(client)
+        run = create_run(client, project_id=project["id"], goal="Test")
+        run_id = run["id"]
+
+        # Create a directive to add another event
+        client.post(f"/runs/{run_id}/directive", json={"text": "Test directive"})
+
+        # Get all events
+        resp = client.get(f"/runs/{run_id}/events")
+        _assert_ok(resp)
+        all_events = _json(resp)
+        assert len(all_events) >= 2
+
+        # Get events after first event
+        first_event_id = all_events[0]["id"]
+        resp = client.get(f"/runs/{run_id}/events?after_id={first_event_id}")
+        _assert_ok(resp)
+        filtered_events = _json(resp)
+        assert len(filtered_events) == len(all_events) - 1
+        assert all(e["id"] > first_event_id for e in filtered_events)
+
+    def test_stream_nonexistent_run_returns_404(self, client):
+        """Test SSE endpoint returns 404 for non-existent run"""
+        resp = client.get("/runs/99999/events/stream")
+        assert resp.status_code == 404
+
+    # Note: Full SSE streaming tests are skipped because TestClient doesn't handle
+    # long-lived streaming connections well. The SSE endpoint will be tested manually
+    # and through frontend integration testing.
+
     def test_create_directive(self, client):
         project = create_project(client)
         run = create_run(client, project_id=project["id"], goal="Test")
