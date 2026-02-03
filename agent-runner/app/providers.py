@@ -4,8 +4,10 @@ LLM providers for agent execution.
 This module contains provider implementations for various LLM services.
 """
 import os
+import time
 import logging
 import requests
+import threading
 from typing import Optional, Callable, Any
 from enum import Enum
 
@@ -16,6 +18,7 @@ class EventType(str, Enum):
     """Event types for LLM generation"""
     LOADING_MODEL = "LOADING_MODEL"
     GENERATING = "GENERATING"
+    HEARTBEAT = "HEARTBEAT"  # Periodic progress update during generation
     DONE = "DONE"
     ERROR = "ERROR"
 
@@ -46,7 +49,8 @@ class OllamaProvider:
         prompt: str,
         model: str,
         event_callback: Optional[Callable[[EventType, str], None]] = None,
-        timeout: int = 300
+        timeout: int = 300,
+        heartbeat_interval: int = 15
     ) -> str:
         """
         Generate text from a prompt using Ollama.
@@ -56,6 +60,7 @@ class OllamaProvider:
             model: The model name to use (e.g., "gemma3:27b", "qwen3-coder:latest")
             event_callback: Optional callback function that receives (EventType, message) tuples
             timeout: Request timeout in seconds (default: 300)
+            heartbeat_interval: Interval in seconds for heartbeat events (default: 15)
         
         Returns:
             The generated text response
@@ -77,10 +82,28 @@ class OllamaProvider:
             "stream": False  # Non-streaming for now
         }
         
+        # Track start time for elapsed time reporting
+        start_time = time.time()
+        heartbeat_stop = threading.Event()
+        heartbeat_thread = None
+        
+        def heartbeat_worker():
+            """Background thread that emits heartbeat events"""
+            while not heartbeat_stop.wait(heartbeat_interval):
+                elapsed = int(time.time() - start_time)
+                if event_callback:
+                    event_callback(EventType.HEARTBEAT, 
+                                 f"Still waiting on {model}... {elapsed}s elapsed")
+        
         try:
             # Emit generating event
             if event_callback:
                 event_callback(EventType.GENERATING, f"Generating response with {model}...")
+            
+            # Start heartbeat thread
+            if event_callback and heartbeat_interval > 0:
+                heartbeat_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+                heartbeat_thread.start()
             
             response = requests.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
@@ -95,31 +118,42 @@ class OllamaProvider:
             
             # Emit done event
             if event_callback:
-                event_callback(EventType.DONE, f"Generation complete ({len(generated_text)} chars)")
+                elapsed = int(time.time() - start_time)
+                event_callback(EventType.DONE, 
+                             f"Generation complete ({len(generated_text)} chars, {elapsed}s)")
             
             logger.info(f"Generation successful: {len(generated_text)} characters")
             return generated_text
             
         except requests.exceptions.Timeout:
-            error_msg = f"Timeout waiting for Ollama response (timeout={timeout}s)"
+            elapsed = int(time.time() - start_time)
+            error_msg = f"Timeout waiting for Ollama response (timeout={timeout}s, elapsed={elapsed}s)"
             logger.error(error_msg)
             if event_callback:
                 event_callback(EventType.ERROR, error_msg)
             raise
             
         except requests.exceptions.RequestException as e:
-            error_msg = f"Ollama API request failed: {str(e)}"
+            elapsed = int(time.time() - start_time)
+            error_msg = f"Ollama API request failed after {elapsed}s: {str(e)}"
             logger.error(error_msg)
             if event_callback:
                 event_callback(EventType.ERROR, error_msg)
             raise
             
         except Exception as e:
-            error_msg = f"Unexpected error during generation: {str(e)}"
+            elapsed = int(time.time() - start_time)
+            error_msg = f"Unexpected error during generation after {elapsed}s: {str(e)}"
             logger.error(error_msg)
             if event_callback:
                 event_callback(EventType.ERROR, error_msg)
             raise
+        
+        finally:
+            # Stop heartbeat thread
+            if heartbeat_thread:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=1)
     
     def check_health(self) -> bool:
         """
