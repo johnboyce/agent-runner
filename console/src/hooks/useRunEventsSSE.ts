@@ -56,7 +56,13 @@ export function useRunEventsSSE(
     // Get existing events from cache
     const existingEvents = queryClient.getQueryData<Event[]>(['events', runId]) || [];
     
-    // Add new event and sort
+    // Optimization: if new event ID is greater than all existing, just append
+    if (existingEvents.length === 0 || event.id > existingEvents[existingEvents.length - 1].id) {
+      queryClient.setQueryData(['events', runId], [...existingEvents, event]);
+      return;
+    }
+    
+    // Otherwise, add and sort (fallback for out-of-order events)
     const updatedEvents = [...existingEvents, event].sort((a, b) => {
       const timeA = new Date(a.created_at).getTime();
       const timeB = new Date(b.created_at).getTime();
@@ -137,7 +143,7 @@ export function useRunEventsSSE(
       ];
       
       eventTypes.forEach(eventType => {
-        eventSource.addEventListener(eventType, (e: any) => {
+        eventSource.addEventListener(eventType, (e: MessageEvent) => {
           try {
             const event = JSON.parse(e.data) as Event;
             mergeEvent(event);

@@ -140,6 +140,8 @@ async def stream_run_events(
                     break
                 
                 # Fetch new events from DB
+                # Refresh session to get latest data
+                db.expire_all()
                 new_events = db.query(Event).filter(
                     Event.run_id == run_id,
                     Event.id > cursor
@@ -169,9 +171,7 @@ async def stream_run_events(
         except Exception as e:
             # Log error but don't crash
             print(f"SSE stream error for run {run_id}: {e}")
-        finally:
-            # Clean up DB session
-            db.close()
+        # Note: DB session cleanup handled by FastAPI dependency injection
     
     return StreamingResponse(
         event_generator(),
