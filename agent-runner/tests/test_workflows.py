@@ -548,9 +548,7 @@ class TestHeartbeatEvents:
         result = provider.generate(
             prompt="test",
             model="test-model",
-            event_callback=event_callback,
-            timeout=30,
-            heartbeat_interval=5  # Short interval for testing
+            event_callback=event_callback
         )
         
         # Verify events were captured (at minimum: LOADING_MODEL, GENERATING, DONE)

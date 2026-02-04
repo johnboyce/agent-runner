@@ -11,6 +11,7 @@ from .database import get_db
 from .models import Project, Run, Event
 from .worker import get_worker
 from .agent import get_agent
+from .providers import list_providers, validate_provider_model
 
 router = APIRouter()
 
@@ -52,13 +53,27 @@ def create_run(request: CreateRunRequest, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail=f"Project with id {request.project_id} not found")
 
+    # Validate provider/model if specified in options
+    options = request.options or {}
+    provider_name = options.get("provider")
+    model_name = options.get("model")
+
+    # Validate provider/model configuration
+    try:
+        resolved_provider, resolved_model = validate_provider_model(provider_name, model_name)
+        # Store resolved values back into options
+        options["provider"] = resolved_provider
+        options["model"] = resolved_model
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     # Generate default name if not provided
     run_name = request.name
     if not run_name:
         run_name = f"Run - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     # Serialize options and metadata to JSON strings
-    options_json = json.dumps(request.options) if request.options else None
+    options_json = json.dumps(options) if options else None
     metadata_json = json.dumps(request.metadata) if request.metadata else None
 
     run = Run(
@@ -236,4 +251,15 @@ def trigger_processing():
     agent = get_agent()
     agent.process_queued_runs()
     return {"message": "Processing triggered"}
+
+
+@router.get("/providers")
+def get_providers():
+    """
+    List all available LLM providers with their status and models.
+
+    Returns:
+        List of provider info with name, available status, and models.
+    """
+    return list_providers()
 
