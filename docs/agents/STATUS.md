@@ -1,7 +1,8 @@
-# STATUS
+# STATUS (Run & Verify / Handoff)
 
-This file is the quick **handoff + truth source** for the **agent-runner** platform.
-If something here disagrees with reality, **update this file**.
+This file provides a quick overview of the Agent Runner platform's current state, how to run it, and commands to verify its functionality. It acts as a concise handoff document, ensuring that information is always up-to-date with the deployed or most recently stable state of the platform.
+
+If something here disagrees with reality, **update this file immediately**.
 
 ---
 
@@ -28,7 +29,8 @@ If something here disagrees with reality, **update this file**.
 
 ## How to run (canonical)
 
-> **Use Make targets**. Manual commands are fallback only.
+> **Use Make targets.** Manual commands are fallback only.
+> **All commands listed here must be directly executable and align with the project's `Makefile`.**
 
 ### Discover commands
 ```bash
@@ -185,7 +187,6 @@ curl -N "http://localhost:8000/runs/<id>/events/stream?after_id=70"
 ### View last 10 events (REST)
 ```bash
 curl -sS "http://localhost:8000/runs/<id>/events" | jq '.[-10:]'
-```
 
 ---
 
@@ -198,10 +199,3 @@ For SSE, nginx **must not buffer** the stream:
 - `gzip off;`
 
 See `docs/DEPLOYMENT.md` for full config examples.
-
----
-
-## Change log (optional)
-
-- Add a short bullet here when landing major platform features
-  (e.g. SSE, cancellation, artifacts, persistence).
