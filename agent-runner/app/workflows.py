@@ -37,6 +37,7 @@ class WorkflowStep:
     output_file: Optional[str] = None  # For file write steps
     command: Optional[str] = None  # For shell/maven commands
     save_artifact: bool = False  # Whether to save output as artifact
+    timeout: Optional[int] = None  # Timeout in seconds for this step (overrides engine default)
 
 
 @dataclass
@@ -55,19 +56,21 @@ class WorkflowEngine:
     Executes workflow steps in sequence and emits events for progress tracking.
     """
     
-    def __init__(self, workspace_path: str, timeout: Optional[int] = None):
+    def __init__(self, workspace_path: str, timeout: Optional[int] = None, heartbeat_interval: Optional[int] = None):
         """
         Initialize workflow engine.
         
         Args:
             workspace_path: Base path where all file operations happen
             timeout: Optional timeout in seconds for LLM operations
+            heartbeat_interval: Optional interval in seconds for heartbeat events during LLM generation
         """
         self.workspace_path = Path(workspace_path)
         self.workspace_path.mkdir(parents=True, exist_ok=True)
         self.ollama = get_ollama_provider()
         self.timeout = timeout or int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "300"))
-        logger.info(f"WorkflowEngine initialized with workspace: {self.workspace_path}, timeout: {self.timeout}s")
+        self.heartbeat_interval = heartbeat_interval or int(os.getenv("OLLAMA_HEARTBEAT_INTERVAL", "15"))
+        logger.info(f"WorkflowEngine initialized with workspace: {self.workspace_path}, timeout: {self.timeout}s, heartbeat_interval: {self.heartbeat_interval}s")
     
     def execute_workflow(
         self,
@@ -169,12 +172,17 @@ class WorkflowEngine:
             if event_callback:
                 event_callback(f"LLM_{event_type.value}", message, None)
         
+        # Use step-specific timeout if provided, otherwise use engine default
+        timeout = step.timeout if step.timeout is not None else self.timeout
+        logger.info(f"Using timeout of {timeout}s for step: {step.name}")
+        
         # Generate content using Ollama
         generated_content = self.ollama.generate(
             prompt=step.prompt,
             model=step.model,
             event_callback=ollama_event_wrapper,
-            timeout=self.timeout
+            timeout=timeout,
+            heartbeat_interval=self.heartbeat_interval
         )
         
         result = {
@@ -295,7 +303,8 @@ Create a detailed project plan that includes:
 
 Write the plan in Markdown format with clear sections.""",
             output_file="PLAN.md",
-            save_artifact=False
+            save_artifact=False,
+            timeout=300  # 5 minutes for planning
         ),
         WorkflowStep(
             name="coder",
@@ -323,7 +332,8 @@ Output each file with clear markers like:
 
 Make sure to use Quarkus BOM version 3.x and compatible dependencies.""",
             output_file="project_files.txt",
-            save_artifact=True
+            save_artifact=True,
+            timeout=1800  # 30 minutes for code generation
         ),
         WorkflowStep(
             name="maven_test",
@@ -426,7 +436,8 @@ def apply_model_overrides(
             prompt=step.prompt,
             output_file=step.output_file,
             command=step.command,
-            save_artifact=step.save_artifact
+            save_artifact=step.save_artifact,
+            timeout=step.timeout  # Preserve timeout setting
         )
         new_steps.append(new_step)
     

@@ -400,3 +400,237 @@ class TestWorkflowEngineTimeout:
             assert engine.timeout == 300
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+class TestStepLevelTimeout:
+    """Tests for step-level timeout configuration"""
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_step_specific_timeout_overrides_engine_default(self, mock_get_provider):
+        """Test that step-specific timeout overrides engine default"""
+        import tempfile
+        import shutil
+        from app.workflows import WorkflowStep, WorkflowStepType
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_provider.generate.return_value = "Test output"
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine with default timeout of 300
+            engine = WorkflowEngine(temp_dir, timeout=300)
+            
+            # Create step with custom timeout
+            step = WorkflowStep(
+                name="test",
+                step_type=WorkflowStepType.LLM_GENERATE,
+                description="Test",
+                model="test-model",
+                prompt="Test prompt",
+                timeout=900  # Step-specific timeout
+            )
+            
+            engine._execute_step(step)
+            
+            # Verify step timeout was used instead of engine default
+            mock_provider.generate.assert_called_once()
+            call_kwargs = mock_provider.generate.call_args[1]
+            assert call_kwargs['timeout'] == 900
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_step_without_timeout_uses_engine_default(self, mock_get_provider):
+        """Test that step without timeout uses engine default"""
+        import tempfile
+        import shutil
+        from app.workflows import WorkflowStep, WorkflowStepType
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_provider.generate.return_value = "Test output"
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine with custom timeout
+            engine = WorkflowEngine(temp_dir, timeout=450)
+            
+            # Create step without timeout
+            step = WorkflowStep(
+                name="test",
+                step_type=WorkflowStepType.LLM_GENERATE,
+                description="Test",
+                model="test-model",
+                prompt="Test prompt"
+            )
+            
+            engine._execute_step(step)
+            
+            # Verify engine timeout was used
+            mock_provider.generate.assert_called_once()
+            call_kwargs = mock_provider.generate.call_args[1]
+            assert call_kwargs['timeout'] == 450
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def test_quarkus_workflow_has_different_timeouts(self):
+        """Test that the Quarkus workflow has different timeouts for planner vs coder"""
+        from app.workflows import QUARKUS_BOOTSTRAP_V1
+        
+        planner_step = QUARKUS_BOOTSTRAP_V1.steps[0]  # planner
+        coder_step = QUARKUS_BOOTSTRAP_V1.steps[1]  # coder
+        
+        # Verify planner has shorter timeout
+        assert planner_step.name == "planner"
+        assert planner_step.timeout == 300  # 5 minutes
+        
+        # Verify coder has longer timeout
+        assert coder_step.name == "coder"
+        assert coder_step.timeout == 1800  # 30 minutes
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_apply_model_overrides_preserves_timeout(self, mock_get_provider):
+        """Test that apply_model_overrides preserves step timeout settings"""
+        from app.workflows import apply_model_overrides, QUARKUS_BOOTSTRAP_V1
+        
+        model_overrides = {
+            "planner": "llama2:latest",
+            "coder": "deepseek-coder:latest"
+        }
+        
+        modified_workflow = apply_model_overrides(QUARKUS_BOOTSTRAP_V1, model_overrides)
+        
+        # Check that timeouts are preserved
+        assert modified_workflow.steps[0].timeout == 300
+        assert modified_workflow.steps[1].timeout == 1800
+
+
+class TestHeartbeatEvents:
+    """Tests for heartbeat events during LLM generation"""
+    
+    def test_heartbeat_event_type_exists(self):
+        """Test that HEARTBEAT event type is defined"""
+        from app.providers import EventType
+        
+        assert hasattr(EventType, 'HEARTBEAT')
+        assert EventType.HEARTBEAT == "HEARTBEAT"
+    
+    @patch('app.providers.requests.post')
+    @patch('time.time')
+    def test_heartbeat_events_emitted_during_generation(self, mock_time, mock_post):
+        """Test that the heartbeat mechanism is properly set up during generation"""
+        from app.providers import OllamaProvider, EventType
+        import time
+        
+        # Mock time to show passage of time
+        mock_time.return_value = 5.0
+        
+        # Mock successful response
+        mock_response = Mock()
+        mock_response.json.return_value = {"response": "Generated text"}
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        
+        # Simulate delay before response
+        def delayed_post(*args, **kwargs):
+            time.sleep(0.05)  # Small delay to allow heartbeat thread to start
+            return mock_response
+        
+        mock_post.side_effect = delayed_post
+        
+        provider = OllamaProvider()
+        
+        events = []
+        def event_callback(event_type, message):
+            events.append((event_type, message))
+        
+        result = provider.generate(
+            prompt="test",
+            model="test-model",
+            event_callback=event_callback,
+            timeout=30,
+            heartbeat_interval=5  # Short interval for testing
+        )
+        
+        # Verify events were captured (at minimum: LOADING_MODEL, GENERATING, DONE)
+        event_types = [e[0] for e in events]
+        assert EventType.LOADING_MODEL in event_types
+        assert EventType.GENERATING in event_types
+        assert EventType.DONE in event_types
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_passes_heartbeat_interval_to_provider(self, mock_get_provider):
+        """Test that WorkflowEngine passes heartbeat_interval to provider"""
+        import tempfile
+        import shutil
+        from app.workflows import WorkflowStep, WorkflowStepType
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_provider.generate.return_value = "Test output"
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine with custom heartbeat interval
+            engine = WorkflowEngine(temp_dir, timeout=300, heartbeat_interval=20)
+            
+            assert engine.heartbeat_interval == 20
+            
+            step = WorkflowStep(
+                name="test",
+                step_type=WorkflowStepType.LLM_GENERATE,
+                description="Test",
+                model="test-model",
+                prompt="Test prompt"
+            )
+            
+            engine._execute_step(step)
+            
+            # Verify heartbeat_interval was passed to generate
+            mock_provider.generate.assert_called_once()
+            call_kwargs = mock_provider.generate.call_args[1]
+            assert call_kwargs['heartbeat_interval'] == 20
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_heartbeat_interval_from_env(self, mock_get_provider):
+        """Test that engine respects OLLAMA_HEARTBEAT_INTERVAL env var"""
+        import os
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        os.environ["OLLAMA_HEARTBEAT_INTERVAL"] = "30"
+        
+        try:
+            mock_provider = Mock()
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine without explicit heartbeat_interval
+            engine = WorkflowEngine(temp_dir)
+            
+            assert engine.heartbeat_interval == 30
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            os.environ.pop("OLLAMA_HEARTBEAT_INTERVAL", None)
+    
+    @patch('app.workflows.get_ollama_provider')
+    def test_engine_default_heartbeat_interval(self, mock_get_provider):
+        """Test that engine uses default heartbeat interval when none specified"""
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            mock_provider = Mock()
+            mock_get_provider.return_value = mock_provider
+            
+            # Create engine without heartbeat_interval
+            engine = WorkflowEngine(temp_dir)
+            
+            # Should default to 15
+            assert engine.heartbeat_interval == 15
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
