@@ -13,30 +13,56 @@ This document defines all current and future platform development work for **age
 
 ## Now
 
-### 1) Integrate with multiple LLM providers (Gemini, Claude, Ollama)
-**Goal:** Connect the agent to multiple LLM providers to enable flexible, real LLM-powered execution.
+### 1) Create LLM provider abstraction and add Gemini provider
+**Goal:** Establish a provider abstraction layer and add Gemini as a second provider beyond Ollama.
 **DoD:**
-- Provider abstraction implemented for Gemini, Claude, and Ollama.
-- Agent can successfully invoke each configured LLM provider.
-- Basic API endpoint exists to list available LLM providers.
+- `LLMProvider` Protocol defined in `app/providers.py` with:
+  - `generate(prompt: str, model: str, event_callback: Optional[Callable]) -> str`
+  - `check_health() -> bool`
+  - `list_models() -> list[str]` (returns statically-known or dynamically-discovered models)
+- `OllamaProvider` refactored to implement `LLMProvider` protocol (no behavior change).
+- `GeminiProvider` implemented using `google-generativeai` SDK, authenticated via `GEMINI_API_KEY` env var.
+- Provider registry: `get_provider(name: str) -> LLMProvider` returns configured provider or raises `ValueError`.
+- Provider selection per-run via `run.options.provider` and `run.options.model`; validated at run creation (400 if invalid).
+- Defaults via `DEFAULT_LLM_PROVIDER` (default: "ollama") and `DEFAULT_LLM_MODEL` (default: provider-specific).
+- `GET /providers` returns: `[{"name": "ollama", "available": true, "models": [...]}, {"name": "gemini", "available": false, "models": [...]}]`
+  - `available: true` if health check passes and API key configured (where required).
+- Errors from LLM providers logged as `LLM_ERROR` event; run transitions to FAILED, worker continues.
+- If run specifies unavailable/unconfigured provider, run fails immediately with `PROVIDER_UNAVAILABLE` event.
 **Validation Commands:**
 ```bash
-make test # Ensures backend integration and provider abstraction
-# Use bruno tests or curl to hit the API endpoint to list providers
-# Manually test agent execution with each configured LLM provider (e.g., using a simple "hello world" prompt)
+make test
+curl http://localhost:8000/providers  # Returns provider list with availability
+# With GEMINI_API_KEY set:
+curl -X POST http://localhost:8000/runs -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "goal": "test", "options": {"provider": "gemini", "model": "gemini-1.5-flash"}}'
+# Without GEMINI_API_KEY, verify gemini shows available: false
+# Invalid provider returns 400: {"provider": "openai", ...}
 ```
 
 ### 2) Implement File System Operations
-**Goal:** Allow agents to read from and write to the local file system in a controlled manner.
+**Goal:** Allow agents to read from and write to a designated, securely managed local file system directory.
 **DoD:**
-- API endpoints exist for agent to read and write files within a designated project directory.
-- Security considerations (e.g., path traversal) are addressed.
-- Agent execution logic supports file system interactions.
+- Run workspace directory created at `WORKSPACE_ROOT/{run_id}/` when run starts (configurable via `WORKSPACE_ROOT` env var, default `./workspaces`).
+- API endpoints exist for agent to:
+  - `POST /runs/{id}/files` - write file (create or overwrite)
+  - `GET /runs/{id}/files?path=...` - read file
+  - `GET /runs/{id}/files` - list files/directories
+  - `POST /runs/{id}/files/mkdir` - create directory
+  - `DELETE /runs/{id}/files?path=...` - delete file or empty directory
+- Path traversal prevention enforced: all paths resolved and validated to stay within run workspace.
+- File size limit enforced (configurable via `MAX_FILE_SIZE_BYTES`, default 10MB).
+- Error handling for: file not found, permission denied, disk full, path traversal attempt, file too large.
+- Workspace persists after run completion (cleanup is out of scope for this task).
 **Validation Commands:**
 ```bash
-make test # Ensures backend API for file operations
-# Create a test workflow that involves the agent reading from and writing to a file, then verify file contents
-# Use bruno tests or curl to test file read/write API endpoints
+make test # Ensures backend API for file operations, including security and error handling
+# Test sequence:
+curl -X POST "http://localhost:8000/runs/1/files/mkdir" -d '{"path": "src"}'
+curl -X POST "http://localhost:8000/runs/1/files" -d '{"path": "src/main.py", "content": "print(1)"}'
+curl "http://localhost:8000/runs/1/files?path=src/main.py"  # read back
+curl "http://localhost:8000/runs/1/files"  # list all
+curl "http://localhost:8000/runs/1/files?path=../../../etc/passwd"  # expect 400 error
 ```
 
 ---

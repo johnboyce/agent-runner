@@ -59,7 +59,11 @@ def create_run(client: TestClient, project_id: int, goal="Test goal"):
 def client():
     """
     Fresh in-memory DB per test, but shared connection via StaticPool.
+    Also mocks provider health checks to always return True for testing.
     """
+    from unittest.mock import patch
+    from app.providers import OllamaProvider, GeminiProvider
+
     engine = create_engine(
         "sqlite:///:memory:",  # Explicitly use :memory:
         connect_args={"check_same_thread": False},
@@ -78,8 +82,11 @@ def client():
 
     app.dependency_overrides[get_db] = override_get_db
 
-    with TestClient(app) as test_client:
-        yield test_client
+    # Mock provider health checks to always return True for testing
+    with patch.object(OllamaProvider, 'check_health', return_value=True), \
+         patch.object(GeminiProvider, 'check_health', return_value=True):
+        with TestClient(app) as test_client:
+            yield test_client
 
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
@@ -303,3 +310,97 @@ class TestWorkerEndpoints:
         _assert_ok(resp, expected=(200,))
         data = _json(resp)
         assert data["message"] == "Processing triggered"
+
+
+class TestProvidersEndpoint:
+    def test_list_providers(self, client):
+        """Test GET /providers returns provider list"""
+        resp = client.get("/providers")
+        _assert_ok(resp, expected=(200,))
+        data = _json(resp)
+
+        assert isinstance(data, list)
+        assert len(data) >= 2  # At least ollama and gemini
+
+        # Check structure of provider info
+        provider_names = [p["name"] for p in data]
+        assert "ollama" in provider_names
+        assert "gemini" in provider_names
+
+        for provider in data:
+            assert "name" in provider
+            assert "available" in provider
+            assert "models" in provider
+            assert "default_model" in provider
+            assert isinstance(provider["models"], list)
+
+
+class TestRunCreationWithProvider:
+    """Tests for run creation with provider/model validation"""
+
+    def test_create_run_with_valid_provider(self, client):
+        """Test creating run with explicit provider succeeds when available"""
+        # Provider health is mocked to True in fixture
+        project = create_project(client)
+
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test with provider",
+            "options": {
+                "provider": "ollama",
+                "model": "gemma3:27b"
+            }
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert data["options"]["provider"] == "ollama"
+        assert data["options"]["model"] == "gemma3:27b"
+
+    def test_create_run_with_invalid_provider_returns_400(self, client):
+        """Test creating run with invalid provider returns 400"""
+        project = create_project(client)
+
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test with invalid provider",
+            "options": {
+                "provider": "nonexistent",
+                "model": "some-model"
+            }
+        })
+
+        assert resp.status_code == 400, f"Expected 400, got {resp.status_code}. Body: {resp.text}"
+        detail = _json(resp)["detail"]
+        assert "Unknown provider" in detail
+
+    def test_create_run_without_provider_uses_defaults(self, client):
+        """Test creating run without provider uses defaults"""
+        # Provider health is mocked to True in fixture
+        project = create_project(client)
+
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test without provider"
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        # Default provider/model should be set
+        assert data["options"]["provider"] == "ollama"
+        assert data["options"]["model"] == "gemma3:27b"
+
+    def test_create_run_with_model_only_uses_default_provider(self, client):
+        """Test creating run with model only uses default provider"""
+        # Provider health is mocked to True in fixture
+        project = create_project(client)
+
+        resp = client.post("/runs", json={
+            "project_id": project["id"],
+            "goal": "Test with model only",
+            "options": {
+                "model": "custom-model"
+            }
+        })
+        _assert_ok(resp)
+        data = _json(resp)
+        assert data["options"]["provider"] == "ollama"
+        assert data["options"]["model"] == "custom-model"
