@@ -73,6 +73,18 @@ curl -X POST "http://localhost:8000/runs" \
 → All commands, ports, API endpoints  
 → Troubleshooting guide
 
+#### **Manage Agent Tasks and Roadmap**
+→ Read [`docs/agents/TASKS.md`](docs/agents/TASKS.md)  
+→ Current tasks, next steps, and long-term roadmap
+
+#### **Get a Quick Project Status Handoff**
+→ Read [`docs/agents/STATUS.md`](docs/agents/STATUS.md)  
+→ What works, known risks, and canonical run commands
+
+#### **Propose New Agent Tasks/Ideas**
+→ Add to [`docs/agents/INBOX.md`](docs/agents/INBOX.md)  
+→ Scratchpad for new ideas, outputs, logs, and notes
+
 #### **Understand the Create Run feature**
 → Read [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md)  
 → Complete feature documentation  
@@ -116,6 +128,11 @@ curl -X POST "http://localhost:8000/runs" \
 | **[milestone-01-local-stack.md](docs/milestone-01-local-stack.md)** | Milestone 1 documentation | Project history |
 | **[milestone-03-console-mvp.md](docs/milestone-03-console-mvp.md)** | Milestone 3 documentation | Console MVP details |
 
+### `/docs/agents` Directory
+- **`INBOX.md`** - Scratchpad for new ideas, notes, agent output, logs.
+- **`TASKS.md`** - The definitive list of platform work and roadmap.
+- **`STATUS.md`** - Handoff document with current state and canonical run commands.
+
 ### `/docs/_analysis` Directory
 Historical analysis and development notes (timestamped):
 - `PROJECT_STATUS_2026-01-31.md`
@@ -132,46 +149,50 @@ Historical analysis and development notes (timestamped):
 ```mermaid
 flowchart TD
     START([New to Agent Runner?]) --> README[README.md<br/>Project Overview]
-    
+
     README --> ROLE{What's your goal?}
-    
+
     ROLE -->|Understand System| ARCH[ARCHITECTURE.md<br/>System Design & Diagrams]
     ROLE -->|Quick Start| QS[Quick Start Section<br/>in DOCS_INDEX.md]
-    ROLE -->|Daily Development| QUICK[QUICK_REFERENCE.md<br/>Commands & API]
+    ROLE -->|Daily Development & Tasks| TASKS[docs/agents/TASKS.md<br/>Current Work & Roadmap]
     ROLE -->|See It Work| DEMO[AGENT_QUICKSTART.md<br/>One-Command Demo]
-    
+    ROLE -->|Quick Status Check| STATUS[docs/agents/STATUS.md<br/>Current State & Run Commands]
+
     QS --> INSTALL[make install]
     INSTALL --> START_SERV[make start]
     START_SERV --> BROWSER[Open localhost:3001]
     BROWSER --> CREATE[Create a Run]
     CREATE --> OBSERVE[Observe Execution]
-    
+
     ARCH --> UNDERSTAND{Need More Detail?}
     UNDERSTAND -->|Data Flow| SEQ[Sequence Diagrams]
     UNDERSTAND -->|Database| ERD[ER Diagram]
     UNDERSTAND -->|Components| COMP[Component Details]
-    
+
     DEMO --> TRY[Try Creating Runs]
     TRY --> DEEP{Want Deeper Understanding?}
-    
+
     DEEP -->|Testing| TEST[TESTING.md<br/>Test Structure]
     DEEP -->|Contributing| CONTRIB[CONTRIBUTING.md<br/>Development Guide]
     DEEP -->|Features| FEATURES[Feature Docs]
-    
-    QUICK --> DAILY[Daily Development Work]
+
+    TASKS --> DAILY[Daily Development Work]
     TEST --> DAILY
     CONTRIB --> DAILY
-    
+    STATUS --> DAILY
+
     FEATURES --> MODAL[CREATE_RUN_MODAL.md]
     FEATURES --> EXEC[AGENT_EXECUTION.md]
-    
+
     DAILY --> NEED{Need Historical Context?}
     NEED -->|Yes| ANALYSIS[docs/_analysis/<br/>Session Notes]
     NEED -->|No| WORK[Continue Development]
-    
+
     style START fill:#FFD700
     style README fill:#87CEEB
     style ARCH fill:#90EE90
+    style TASKS fill:#ADD8E6
+    style STATUS fill:#ADD8E6
     style QUICK fill:#DDA0DD
     style DAILY fill:#98FB98
     style WORK fill:#32CD32
@@ -181,12 +202,14 @@ flowchart TD
 1. Read root [`README.md`](README.md)
 2. Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 3. Try Quick Start above
-4. Bookmark [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md)
+4. Read [`docs/agents/TASKS.md`](docs/agents/TASKS.md) for the project roadmap and current tasks.
+5. Bookmark [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) and [`docs/agents/STATUS.md`](docs/agents/STATUS.md)
 
 ### For Continuing Development
 1. Use [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) for daily reference
-2. Read [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) for latest features
-3. Refer to [`docs/_analysis/`](docs/_analysis/) for historical context if needed
+2. Refer to [`docs/agents/TASKS.md`](docs/agents/TASKS.md) for current tasks and roadmap.
+3. Read [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) for latest features
+4. Refer to [`docs/_analysis/`](docs/_analysis/) for historical context if needed
 
 ---
 
@@ -204,36 +227,9 @@ flowchart TD
 | Testing | [`docs/TESTING.md`](docs/TESTING.md) | All sections |
 | Create Run feature | [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) | Complete guide |
 | Philosophy | Root [`README.md`](README.md) | "Development Philosophy" |
-
----
-
-## ✅ **What's Working Right Now**
-
-Based on implemented and tested code:
-- ✅ Agent Runner API (all REST endpoints operational, 27/27 tests passing)
-- ✅ Background Worker (polls QUEUED runs, claims atomically, simulates execution)
-- ✅ Console UI (dashboard with real-time polling, run detail page, controls)
-- ✅ Create Run Modal (full form with name, type, goal, options, metadata - all fields working)
-- ✅ Database (SQLite with enhanced schema including new Run columns)
-- ✅ Run controls (pause, resume, stop endpoints functional)
-- ✅ Event logging (events stored in DB and displayed in UI)
-- ✅ Service status indicators (Worker, Forgejo, Taiga - UI badges with polling)
-
-**Note:** Agent execution is currently simulated (logs events but doesn't perform real work). LLM integration and file operations are not yet implemented.
-
----
-
-## 🚧 **What Needs Work**
-
-Known gaps and future work:
-- 🔴 Real LLM integration (Ollama not connected to agent logic yet)
-- 🔴 Actual agent intelligence (currently simulated execution)
-- 🔴 File operations (agents can't read/write files yet)
-- 🔴 Git integration (no branch management, commits, diffs)
-- 🔴 Multi-agent coordination
-- 🔴 Forgejo/Taiga workflow integration
-
----
+| **Current Tasks / Roadmap** | [`docs/agents/TASKS.md`](docs/agents/TASKS.md) | "Now", "Next", "Later" |
+| **Project Status Handoff** | [`docs/agents/STATUS.md`](docs/agents/STATUS.md) | "What works", "Known risks" |
+| **Propose New Ideas** | [`docs/agents/INBOX.md`](docs/agents/INBOX.md) | All sections |
 
 ## 🚀 **Your Next Move**
 
@@ -259,16 +255,16 @@ open http://localhost:3000
 
 ## 💬 **Need Help?**
 
-**For quick lookups:**  
+**For quick lookups:**
 → [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md)
 
-**For understanding the system:**  
+**For understanding the system:**
 → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
-**For testing:**  
+**For testing:**
 → [`docs/TESTING.md`](docs/TESTING.md)
 
-**For debugging:**  
+**For debugging:**
 → [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) → Troubleshooting section
 
 ---
@@ -278,12 +274,14 @@ open http://localhost:3000
 Most useful for daily work:
 1. [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - Commands and shortcuts
 2. [`docs/API_REFERENCE.md`](docs/API_REFERENCE.md) - Complete API documentation
-3. [`docs/CREATE_RUN_MODAL_IMPLEMENTATION.md`](docs/CREATE_RUN_MODAL_IMPLEMENTATION.md) - Latest features
-4. Root [`README.md`](README.md) - Project philosophy
+3. [`docs/agents/TASKS.md`](docs/agents/TASKS.md) - The definitive list of platform work and roadmap.
+4. [`docs/agents/STATUS.md`](docs/agents/STATUS.md) - Handoff document with current state and canonical run commands.
+5. [`GEMINI.md`](GEMINI.md) - Guide for working with Gemini Code Assistant.
+6. [`CLAUDE.md`](CLAUDE.md) - Guide for working with Claude Code.
 
 Most useful for understanding:
 1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - Technical design
-2. [`docs/README.md`](docs/README.md) - Documentation overview
+2. Root [`README.md`](README.md) - Project overview and philosophy
 3. [`docs/_analysis/`](docs/_analysis/) - Historical development notes
 
 ---

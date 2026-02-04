@@ -118,7 +118,23 @@ You can get the project up and running quickly using the provided `Makefile`.
    Open [http://localhost:3001](http://localhost:3001) in your browser.
 
 
-## 4. How to Use Gemini to Work on This Project
+## 4. Agent Tasking Workflow
+
+This project uses a structured workflow for managing agent tasks, ensuring clarity and focus. The workflow is centered around three key files in the `docs/agents/` directory:
+
+- **`INBOX.md`**: A scratchpad for new ideas, unprocessed notes, agent outputs, and logs. This is the starting point for all new tasks.
+- **`TASKS.md`**: The single source of truth for all work to be done on the `agent-runner` platform. It's divided into "Now", "Next", and "Later" sections to prioritize work.
+- **`STATUS.md`**: A handoff document that provides a quick summary of the project's current state, how to run it, and key commands.
+
+### Workflow Steps
+
+1.  **Propose a Task**: If you have a new idea or feature request, add it to the `docs/agents/INBOX.md` file. Don't worry about formatting or organization at this stage.
+2.  **Triage the Task**: During a triage session, a developer will review the items in `INBOX.md` and decide which ones should be moved to `TASKS.md`.
+3.  **Prioritize the Task**: Once a task is in `TASKS.md`, it will be prioritized and moved to the "Now", "Next", or "Later" section.
+4.  **Execute the Task**: Gemini will only work on tasks that are in the "Now" section of `TASKS.md`.
+5.  **Update the Status**: Once a task is completed, the `STATUS.md` file will be updated to reflect the new state of the project.
+
+## 5. How to Use Gemini to Work on This Project
 
 Gemini can help you with various development tasks. Here are a few examples:
 
@@ -188,6 +204,9 @@ Gemini can help you with various development tasks. Here are a few examples:
   - **`src/lib/api.ts`**: The API client for the frontend.
   - **`src/hooks/`**: Custom React hooks for data fetching.
 - **`docs/`**: Project documentation. A great place to start for more in-depth information.
+  - **`docs/agents/TASKS.md`**: The primary planning document and roadmap for agent tasks.
+  - **`docs/agents/STATUS.md`**: A quick reference for the project's current state and how to run it.
+  - **`docs/agents/INBOX.md`**: For new ideas and unprocessed notes.
 - **`bruno/`**: API tests using Bruno.
 - **`scripts/`**: Useful scripts for development and testing.
 
